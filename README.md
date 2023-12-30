@@ -1,7 +1,6 @@
-# lcrs
+# ICRS
 Language Conditioned Robot Skills
 
-## Installation 
 # Installation
 This repository requires Calvin to be installed.
 To integrate the LCRS module into Calvin, navigate to the calvin root and clone this repository:
