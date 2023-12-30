@@ -13,3 +13,6 @@ To integrate the LCRS module into Calvin, navigate to the calvin root and clone 
 2. **Install lcrs Repository:**
    ```bash
    cd $LCRS_ROOT && sh install.sh
+3. **Configure W&B logger**
+   Modify the `$LCRS_ROOT/conf/logger/wandb.yaml` file by setting the `project` field with the project name of your W&B workspace and the `entity` field with your W&B username.
+4. 
