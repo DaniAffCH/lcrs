@@ -1,0 +1,13 @@
+LICENSE
+README.md
+pyproject.toml
+setup.py
+LCRS.egg-info/PKG-INFO
+LCRS.egg-info/SOURCES.txt
+LCRS.egg-info/dependency_links.txt
+LCRS.egg-info/not-zip-safe
+LCRS.egg-info/requires.txt
+LCRS.egg-info/top_level.txt
+conf/__init__.py
+lcrs/__init__.py
+lcrs/training.py

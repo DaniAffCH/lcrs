@@ -1,0 +1,34 @@
+Metadata-Version: 2.1
+Name: LCRS
+Version: 0.0.1
+Summary: Language Conditioned Robot Skills
+Home-page:  https://github.com/mees/hulc
+Author: Daniele Affinita
+Author-email: danieleaffinita2000@gmail.com
+License: Apache
+Keywords: pytorch,lcrs
+Platform: Any
+License-File: LICENSE
+Requires-Dist: cmake
+Requires-Dist: wheel
+Requires-Dist: numpy>1.2
+Requires-Dist: hydra-core==1.1.1
+Requires-Dist: hydra-colorlog
+Requires-Dist: matplotlib
+Requires-Dist: opencv-python
+Requires-Dist: omegaconf
+Requires-Dist: plotly
+Requires-Dist: ftfy
+Requires-Dist: pytorch-lightning==1.8.6
+Requires-Dist: lightning_lite
+Requires-Dist: torch==1.13.1
+Requires-Dist: torchvision
+Requires-Dist: MulticoreTSNE
+Requires-Dist: gitpython
+Requires-Dist: scipy
+Requires-Dist: sentence-transformers
+Requires-Dist: gym
+Requires-Dist: moviepy
+Requires-Dist: tqdm
+Requires-Dist: termcolor
+Requires-Dist: wandb
