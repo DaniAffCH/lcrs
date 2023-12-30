@@ -1,4 +1,4 @@
-# ICRS
+# LCRS
 Language Conditioned Robot Skills
 
 # Installation
