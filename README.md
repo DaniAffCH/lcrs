@@ -15,3 +15,7 @@ To integrate the LCRS module into Calvin, navigate to the calvin root and clone 
 3. **Configure W&B logger**
    Modify the `$LCRS_ROOT/conf/logger/wandb.yaml` file by setting the `project` field with the project name of your W&B workspace and the `entity` field with your W&B username.
 4. 
+
+# Training
+```bash
+python lcrs/training.py datamodule.root_data_dir=/path/to/dataset datamodule/datasets=vision_lang_shm
