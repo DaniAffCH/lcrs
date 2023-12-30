@@ -13,7 +13,7 @@ defaults:
   - proj_vis_lang: default
   - /annotations@val_instructions: new_playtable_validation
 
-_target_: hulc.models.hulc.Hulc
+_target_: lcrs.models.lcrs.Lcrs
 _recursive_: false
 
 kl_beta: ${loss.kl_beta}
