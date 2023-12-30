@@ -1,5 +1,5 @@
 defaults:
-  - perceptual_encoder: gripper_cam
+  - perceptual_encoder: lcrs_perceptual
   - plan_proposal: default
   - plan_recognition: transformers
   - distribution:  discrete

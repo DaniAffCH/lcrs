@@ -67,16 +67,15 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         '''
 
         for self.modality_scope, dataset_batch in batch.items():
-            perceptual_emb = self.perceptual_encoder(
-                dataset_batch["rgb_obs"], dataset_batch["depth_obs"], dataset_batch["robot_obs"]
-            )
+            print(dataset_batch["rgb_obs"]["rgb_static"].shape)
+
+            perceptual_emb = self.perceptual_encoder(dataset_batch["rgb_obs"]["rgb_static"])
 
         loss = perceptual_emb.view(-1).mean(-1)
         # print(batch["vis"]["robot_obs"].shape)
         # loss = batch["vis"]["robot_obs"].view(batch["vis"]["robot_obs"].size(0), -1)
         # loss = loss.mean(-1)
         # print(loss.shape)
-
 
         return {"loss": loss}
 
