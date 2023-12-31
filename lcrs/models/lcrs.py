@@ -49,6 +49,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
     ):
         super(Lcrs, self).__init__()
         self.perceptual_encoder = hydra.utils.instantiate(perceptual_encoder)
+        self.optimizer_config = optimizer
 
     @rank_zero_only
     def on_train_epoch_start(self) -> None:
