@@ -1,4 +1,4 @@
-cmake
+cmake==3.18.4
 wheel
 numpy>1.2
 hydra-core==1.1.1
