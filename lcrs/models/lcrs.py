@@ -82,16 +82,9 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         return loss
 
     def configure_optimizers(self):
-        # TODO: customize
         optimizer = hydra.utils.instantiate(self.optimizer_config, params=self.parameters())
-        if "num_warmup_steps" in self.lr_scheduler:
-            self.lr_scheduler.num_training_steps, self.lr_scheduler.num_warmup_steps = self.compute_warmup(
-                num_training_steps=self.lr_scheduler.num_training_steps,
-                num_warmup_steps=self.lr_scheduler.num_warmup_steps,
-            )
-            rank_zero_info(f"Inferring number of training steps, set to {self.lr_scheduler.num_training_steps}")
-            rank_zero_info(f"Inferring number of warmup steps from ratio, set to {self.lr_scheduler.num_warmup_steps}")
         scheduler = hydra.utils.instantiate(self.lr_scheduler, optimizer)
+
         return {
             "optimizer": optimizer,
             "lr_scheduler": {"scheduler": scheduler, "interval": "step", "frequency": 1},
