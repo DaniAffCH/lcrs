@@ -22,8 +22,9 @@ If you encounter errors during build wheels for MulticoreTSNE, try downgrading t
 ```bash
 pip install cmake==3.18.4
 ```
+(the commit 79fc18548e2fb488399ec7fe0b9905bc7296ca63 solved the issue)
 
-Don't worry about the error `ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts. [...]`
+Don't worry about the errors like `ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts. [...]`
 
 # Training
 ```bash
