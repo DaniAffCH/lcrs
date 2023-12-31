@@ -15,13 +15,15 @@ To integrate the LCRS module into Calvin, navigate to the calvin root and clone 
 3. **Configure W&B logger**
    Modify the `$LCRS_ROOT/conf/logger/wandb.yaml` file by setting the `project` field with the project name of your W&B workspace and the `entity` field with your W&B username.
 4. **Download data**
-You can download pre-trained model weights and the dataset with the scripts provided in the [checkpoints](./checkpoints/) and [dataset](./dataset/) directory.
+You can download the dataset with the scripts provided in [dataset](./dataset/) directory.
 
 ## Troubleshooting
 If you encounter errors during build wheels for MulticoreTSNE, try downgrading the cmake version to e.g. 3.18.4: 
 ```bash
-pip install cmake==3.18.4`
+pip install cmake==3.18.4
 ```
+
+Don't worry about the error `ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts. [...]`
 
 # Training
 ```bash
