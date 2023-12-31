@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""Setup hulc installation."""
+"""Setup lcrs installation."""
 
 from os import path as op
 import re
@@ -26,13 +26,13 @@ meta = dict(
     name=find_meta(_meta, "__project__"),
     version=find_meta(_meta, "__version__"),
     license=find_meta(_meta, "__license__"),
-    description="Hierarchical Universal Language Conditioned Policies",
+    description="Language Conditioned Robot Skills",
     platforms=("Any"),
     zip_safe=False,
     keywords="pytorch Lfp".split(),
     author=find_meta(_meta, "__author__"),
     author_email=find_meta(_meta, "__email__"),
-    url=" https://github.com/mees/hulc",
+    url="https://github.com/DaniAffCH/lcrs",
     packages=find_packages(exclude=["tests"]),
 )
 

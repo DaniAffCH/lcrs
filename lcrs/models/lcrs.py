@@ -5,7 +5,7 @@ from calvin_agent.models.calvin_base_model import CalvinBaseModel
 
 from omegaconf import DictConfig
 import pytorch_lightning as pl
-from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.utilities import rank_zero_only, rank_zero_info
 import torch
 import hydra
 
@@ -73,14 +73,27 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             visual_features = self.perceptual_encoder(rgbs.reshape(-1, c, h, w))
             visual_features = visual_features.reshape(b, s, -1)
-            
+
             encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(visual_features, dataset_batch["robot_obs"])
 
         loss = encodingLoss
         return loss
 
     def configure_optimizers(self):
-        pass
+        # TODO: customize
+        optimizer = hydra.utils.instantiate(self.optimizer_config, params=self.parameters())
+        if "num_warmup_steps" in self.lr_scheduler:
+            self.lr_scheduler.num_training_steps, self.lr_scheduler.num_warmup_steps = self.compute_warmup(
+                num_training_steps=self.lr_scheduler.num_training_steps,
+                num_warmup_steps=self.lr_scheduler.num_warmup_steps,
+            )
+            rank_zero_info(f"Inferring number of training steps, set to {self.lr_scheduler.num_training_steps}")
+            rank_zero_info(f"Inferring number of warmup steps from ratio, set to {self.lr_scheduler.num_warmup_steps}")
+        scheduler = hydra.utils.instantiate(self.lr_scheduler, optimizer)
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {"scheduler": scheduler, "interval": "step", "frequency": 1},
+        }
 
     def step(self, obs, goal):
         """

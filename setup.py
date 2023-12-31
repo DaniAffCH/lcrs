@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""Setup hulc installation."""
+"""Setup lcrs installation."""
 
 from os import path as op
 import re
@@ -36,7 +36,7 @@ meta = dict(
     keywords="pytorch lcrs".split(),
     author=find_meta(_meta, "__author__"),
     author_email=find_meta(_meta, "__email__"),
-    url=" https://github.com/mees/hulc",
+    url="https://github.com/DaniAffCH/lcrs",
     packages=find_packages(exclude=["tests"]),
     install_requires=install_requires,
 )
