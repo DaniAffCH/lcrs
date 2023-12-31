@@ -65,20 +65,19 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             'robot_obs', 'rgb_obs', 'depth_obs', 'actions', 'state_info', 'use_for_aux_lang_loss', 'lang', 'idx'
 
         '''
+        encodingLoss = torch.tensor(0.0).to(self.device)
 
         for self.modality_scope, dataset_batch in batch.items():
             rgbs = dataset_batch["rgb_obs"]["rgb_static"]
             b, s, c, h, w = rgbs.shape
 
-            perceptual_emb = self.perceptual_encoder(rgbs.reshape(-1, c, h, w))
+            visual_features = self.perceptual_encoder(rgbs.reshape(-1, c, h, w))
+            visual_features = visual_features.reshape(b, s, -1)
+            
+            encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(visual_features, dataset_batch["robot_obs"])
 
-        loss = perceptual_emb.view(-1).mean(-1)
-        # print(batch["vis"]["robot_obs"].shape)
-        # loss = batch["vis"]["robot_obs"].view(batch["vis"]["robot_obs"].size(0), -1)
-        # loss = loss.mean(-1)
-        # print(loss.shape)
-
-        return {"loss": loss}
+        loss = encodingLoss
+        return loss
 
     def configure_optimizers(self):
         pass

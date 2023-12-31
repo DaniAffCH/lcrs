@@ -1,0 +1,5 @@
+_target_: lcrs.models.decoders.baseDecoder.BaseDecoder
+in_size: 64
+out_size: 8
+hidden_size: 40
+depth: 1

@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
+from omegaconf import DictConfig
+import hydra
 
 
 class ImageEncoder(nn.Module):
@@ -13,10 +15,12 @@ class ImageEncoder(nn.Module):
         self,
         num_c: int,
         visual_features: int,
+        train_decoder: DictConfig
     ):
         super(ImageEncoder, self).__init__()
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.train_decoder = hydra.utils.instantiate(train_decoder)
 
         # TODO: make it adaptive wrt w and h
         self.conv_model = nn.Sequential(
@@ -49,17 +53,20 @@ class ImageEncoder(nn.Module):
         self.y_map = grid_y.reshape(-1).to(device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-
         x = self.conv_model(x)
 
         b, c, w, h = x.shape
         x = x.view(b * c, w * h)
         softmax_attention = F.softmax(x / self.temperature, dim=1)
+
         expected_x = torch.sum(self.x_map * softmax_attention, dim=1, keepdim=True)
         expected_y = torch.sum(self.y_map * softmax_attention, dim=1, keepdim=True)
         expected_xy = torch.cat((expected_x, expected_y), 1)
         x = expected_xy.view(b, c * 2)
-
         x = self.fc(x)
 
         return self.ln(x)
+
+    def getLoss(self, visual_features: torch.Tensor, obs_state: torch.Tensor) -> torch.Tensor:
+        predicted_state = self.train_decoder(visual_features)
+        return F.mse_loss(predicted_state, obs_state)
