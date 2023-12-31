@@ -12,10 +12,11 @@ class ImageEncoder(nn.Module):
     def __init__(
         self,
         num_c: int,
-        visual_features: int
+        visual_features: int,
     ):
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         super(ImageEncoder, self).__init__()
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # TODO: make it adaptive wrt w and h
         self.conv_model = nn.Sequential(
@@ -30,16 +31,35 @@ class ImageEncoder(nn.Module):
             # nn.BatchNorm2d(64),
             nn.LeakyReLU(),
         )
-        self.fc1 = nn.Sequential(
-            nn.Linear(in_features=128, out_features=512), nn.LeakyReLU(), nn.Dropout(
-                0.1), nn.Linear(in_features=512, out_features=visual_features)
-        )  # shape: [N, 512]
-        self.fc2 = nn.Linear(in_features=512, out_features=visual_features)  # shape: [N, 64]
+        self.fc = nn.Sequential(
+            nn.Linear(in_features=128, out_features=512),
+            nn.LeakyReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(in_features=512, out_features=visual_features)
+        )  # shape: [N, visual_features]
         self.ln = nn.LayerNorm(visual_features)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.conv_model(x)
-        x = self.fc1(x)
-        x = self.fc2(x)
+        # TODO: adjust temperature
+        self.temperature = torch.ones(1).to(device)
 
-        return self.ln(x)  # shape: [N, 64]
+        grid_x, grid_y = torch.meshgrid(
+            torch.linspace(-1.0, 1.0, 21), torch.linspace(-1.0, 1.0, 21), indexing="ij"
+        )
+        self.x_map = grid_x.reshape(-1).to(device)
+        self.y_map = grid_y.reshape(-1).to(device)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+
+        x = self.conv_model(x)
+
+        b, c, w, h = x.shape
+        x = x.view(b * c, w * h)
+        softmax_attention = F.softmax(x / self.temperature, dim=1)
+        expected_x = torch.sum(self.x_map * softmax_attention, dim=1, keepdim=True)
+        expected_y = torch.sum(self.y_map * softmax_attention, dim=1, keepdim=True)
+        expected_xy = torch.cat((expected_x, expected_y), 1)
+        x = expected_xy.view(b, c * 2)
+
+        x = self.fc(x)
+
+        return self.ln(x)

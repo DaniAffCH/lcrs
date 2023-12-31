@@ -48,7 +48,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         proj_vis_lang: Optional[DictConfig] = None,
     ):
         super(Lcrs, self).__init__()
-        self.perceptual_encoder = hydra.utils.instantiate(perceptual_encoder, device=self.device)
+        self.perceptual_encoder = hydra.utils.instantiate(perceptual_encoder)
 
     @rank_zero_only
     def on_train_epoch_start(self) -> None:
@@ -67,9 +67,10 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         '''
 
         for self.modality_scope, dataset_batch in batch.items():
-            print(dataset_batch["rgb_obs"]["rgb_static"].shape)
+            rgbs = dataset_batch["rgb_obs"]["rgb_static"]
+            b, s, c, h, w = rgbs.shape
 
-            perceptual_emb = self.perceptual_encoder(dataset_batch["rgb_obs"]["rgb_static"])
+            perceptual_emb = self.perceptual_encoder(rgbs.reshape(-1, c, h, w))
 
         loss = perceptual_emb.view(-1).mean(-1)
         # print(batch["vis"]["robot_obs"].shape)
