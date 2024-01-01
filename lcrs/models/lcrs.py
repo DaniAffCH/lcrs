@@ -80,10 +80,8 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             visual_features = self.perceptual_encoder(static.reshape(-1, cs, hs, ws), gripper.reshape(-1, cg, hg, wg))
             visual_features = visual_features.reshape(bs, ss, -1)
-            print("pinitooo")
 
             encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(visual_features, dataset_batch["robot_obs"])
-            print(encodingLoss)
 
         loss = encodingLoss
         return loss
