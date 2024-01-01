@@ -70,13 +70,20 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         encodingLoss = torch.tensor(0.0).to(self.device)
 
         for self.modality_scope, dataset_batch in batch.items():
-            rgbs = dataset_batch["rgb_obs"]["rgb_static"]
-            b, s, c, h, w = rgbs.shape
+            static = dataset_batch["rgb_obs"]["rgb_static"]
+            gripper = dataset_batch["rgb_obs"]["rgb_gripper"]
 
-            visual_features = self.perceptual_encoder(rgbs.reshape(-1, c, h, w))
-            visual_features = visual_features.reshape(b, s, -1)
+            bs, ss, cs, hs, ws = static.shape
+            bg, sg, cg, hg, wg = gripper.shape
+
+            assert bs == bg and ss == sg and cs == cg
+
+            visual_features = self.perceptual_encoder(static.reshape(-1, cs, hs, ws), gripper.reshape(-1, cg, hg, wg))
+            visual_features = visual_features.reshape(bs, ss, -1)
+            print("pinitooo")
 
             encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(visual_features, dataset_batch["robot_obs"])
+            print(encodingLoss)
 
         loss = encodingLoss
         return loss

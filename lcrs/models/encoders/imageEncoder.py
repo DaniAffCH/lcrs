@@ -13,7 +13,6 @@ import hydra
 class ImageEncoder(nn.Module):
     def __init__(
         self,
-        num_c: int,
         visual_features: int,
         train_decoder: DictConfig
     ):
@@ -22,21 +21,28 @@ class ImageEncoder(nn.Module):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.train_decoder = hydra.utils.instantiate(train_decoder)
 
-        # TODO: make it adaptive wrt w and h
-        self.conv_model = nn.Sequential(
+        self.conv_static = nn.Sequential(
             # input shape: [N, 3, 200, 200]
-            nn.Conv2d(in_channels=num_c, out_channels=32, kernel_size=8, stride=4),  # shape: [N, 32, 49, 49]
-            # nn.BatchNorm2d(32),
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=8, stride=4),  # shape: [N, 32, 49, 49]
             nn.LeakyReLU(),
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),  # shape: [N, 64, 23, 23]
-            # nn.BatchNorm2d(64),
             nn.LeakyReLU(),
             nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),  # shape: [N, 64, 21, 21]
-            # nn.BatchNorm2d(64),
             nn.LeakyReLU(),
         )
+
+        self.conv_gripper = nn.Sequential(
+            # input shape: [N, 3, 84, 84]
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=7, padding=3, stride=1),  # shape: [N, 32, 84, 84]
+            nn.LeakyReLU(),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1, stride=2),  # shape: [N, 64, 42, 42]
+            nn.LeakyReLU(),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1, stride=2),  # shape: [N, 64, 21, 21]
+            nn.LeakyReLU(),
+        )
+
         self.fc = nn.Sequential(
-            nn.Linear(in_features=128, out_features=512),
+            nn.Linear(in_features=256, out_features=512),
             nn.LeakyReLU(),
             nn.Dropout(0.1),
             nn.Linear(in_features=512, out_features=visual_features)
@@ -52,17 +58,26 @@ class ImageEncoder(nn.Module):
         self.x_map = grid_x.reshape(-1).to(device)
         self.y_map = grid_y.reshape(-1).to(device)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.conv_model(x)
-
+    def spatialSoftmax(self, x: torch.Tensor):
         b, c, w, h = x.shape
+        assert w == 21 and h == 21
         x = x.view(b * c, w * h)
         softmax_attention = F.softmax(x / self.temperature, dim=1)
 
         expected_x = torch.sum(self.x_map * softmax_attention, dim=1, keepdim=True)
         expected_y = torch.sum(self.y_map * softmax_attention, dim=1, keepdim=True)
         expected_xy = torch.cat((expected_x, expected_y), 1)
-        x = expected_xy.view(b, c * 2)
+        return expected_xy.view(b, c * 2)
+
+    def forward(self, static: torch.Tensor, gripper: torch.Tensor) -> torch.Tensor:
+
+        static = self.conv_static(static)
+        gripper = self.conv_gripper(gripper)
+
+        static = self.spatialSoftmax(static)
+        gripper = self.spatialSoftmax(gripper)
+
+        x = torch.concat((static, gripper), dim=-1)
         x = self.fc(x)
 
         return self.ln(x)
