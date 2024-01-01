@@ -1,5 +1,5 @@
 defaults:
-  - perceptual_encoder: lcrs_rgbstatic
+  - perceptual_encoder: lcrs_image_encoder
   - plan_proposal: default
   - plan_recognition: transformers
   - distribution:  discrete

@@ -1,5 +1,5 @@
 _target_: lcrs.models.encoders.imageEncoder.ImageEncoder
 _recursive_: false
-visual_features: 64
+visual_features: 128
 defaults:
  - train_decoder: default 

@@ -1,3 +1,0 @@
-_target_: lcrs.models.encoders.imageEncoder.ImageEncoder
-num_c: 3
-visual_features: 64
