@@ -18,5 +18,4 @@ class BaseDecoder(nn.Module):
         self.fc = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        print(x.shape)
         return self.fc(x)

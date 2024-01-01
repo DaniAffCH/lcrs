@@ -18,8 +18,7 @@ _recursive_: false
 
 kl_beta: ${loss.kl_beta}
 kl_balancing_mix: ${loss.kl_balancing_mix}
-state_recons: false
-state_recon_beta: ${loss.state_recon_beta}
+state_reconstruction_weight: ${loss.state_reconstruction_weight}
 use_bc_z_auxiliary_loss: false
 bc_z_auxiliary_loss_beta: ${loss.bc_z_auxiliary_loss_beta}
 use_mia_auxiliary_loss: false

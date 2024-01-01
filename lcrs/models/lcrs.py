@@ -30,8 +30,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         action_decoder: DictConfig,
         kl_beta: float,
         kl_balancing_mix: float,
-        state_recons: bool,
-        state_recon_beta: float,
+        state_reconstruction_weight: float,
         use_bc_z_auxiliary_loss: bool,
         bc_z_auxiliary_loss_beta: float,
         use_mia_auxiliary_loss: bool,
@@ -52,9 +51,19 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         self.optimizer_config = optimizer
         self.lr_scheduler = lr_scheduler
 
+        self.state_reconstruction_weight = state_reconstruction_weight
+
     @rank_zero_only
     def on_train_epoch_start(self) -> None:
         logger.info(f"Start training epoch {self.current_epoch}")
+
+    def logUpdate(self, encodingLoss) -> None:
+        self.log(
+            "train/encoding_loss",
+            encodingLoss,
+            on_step=False,
+            on_epoch=True,
+        )
 
     def training_step(self, batch: Dict[str, Dict], batch_idx: int) -> torch.Tensor:
         '''
@@ -82,6 +91,10 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             visual_features = visual_features.reshape(bs, ss, -1)
 
             encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(visual_features, dataset_batch["robot_obs"])
+
+        encodingLoss = encodingLoss * self.state_reconstruction_weight
+
+        self.logUpdate(encodingLoss)
 
         loss = encodingLoss
         return loss
