@@ -12,12 +12,6 @@ import hydra
 
 logger = logging.getLogger(__name__)
 
-
-@rank_zero_only
-def log_rank_0(*args, **kwargs):
-    logger.info(*args, **kwargs)
-
-
 class Lcrs(pl.LightningModule, CalvinBaseModel):
 
     def __init__(
