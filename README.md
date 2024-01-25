@@ -2,12 +2,11 @@
 Language Conditioned Robot Skills
 
 # Installation
-This repository requires Calvin to be installed.
-To integrate the LCRS module into Calvin, navigate to the calvin root and clone this repository:
+This repository is based on Calvin framework, use the flag `--recursive` to download the framework properly:
 
 1. **Clone Repository:**
    ```bash
-   git clone https://github.com/DaniAffCH/lcrs.git
+   git clone --recursive https://github.com/DaniAffCH/lcrs.git
    export LCRS_ROOT=$(pwd)/lcrs
 2. **Install lcrs Repository:**
    ```bash
