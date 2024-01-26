@@ -11,10 +11,10 @@ This repository is based on Calvin framework, use the flag `--recursive` to down
 2. **Install lcrs Repository:**
    To install the repository, we strongly recommend using the provided conda environment to manage pip dependencies.
    ```bash
-      cd $LCRS_ROOT
-      conda env create -f environment.yml
-      source activate lcrs_venv
-      sh install.sh
+   cd $LCRS_ROOT
+   conda env create -f environment.yml
+   source activate lcrs_venv
+   sh install.sh
    ```
 
 4. **Configure W&B logger**
