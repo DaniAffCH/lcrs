@@ -2,14 +2,14 @@ Metadata-Version: 2.1
 Name: LCRS
 Version: 0.0.1
 Summary: Language Conditioned Robot Skills
-Home-page:  https://github.com/mees/hulc
+Home-page: https://github.com/DaniAffCH/lcrs
 Author: Daniele Affinita
 Author-email: danieleaffinita2000@gmail.com
 License: Apache
 Keywords: pytorch,lcrs
 Platform: Any
 License-File: LICENSE
-Requires-Dist: cmake
+Requires-Dist: cmake==3.18.4
 Requires-Dist: wheel
 Requires-Dist: numpy>1.2
 Requires-Dist: hydra-core==1.1.1
@@ -27,6 +27,7 @@ Requires-Dist: MulticoreTSNE
 Requires-Dist: gitpython
 Requires-Dist: scipy
 Requires-Dist: sentence-transformers
+Requires-Dist: setuptools==57.0.0
 Requires-Dist: gym
 Requires-Dist: moviepy
 Requires-Dist: tqdm

@@ -9,8 +9,26 @@ This repository is based on Calvin framework, use the flag `--recursive` to down
    git clone --recursive https://github.com/DaniAffCH/lcrs.git
    export LCRS_ROOT=$(pwd)/lcrs
 2. **Install lcrs Repository:**
+   To install the repository we strongly reccomend to use the provided conda environment to deal with pip dependencies:
+   #!/bin/bash
+
+pip install wheel cmake==3.18.4
+
+pip install -e .
+cd calvin/calvin_env/tacto
+pip install -e .
+cd ..
+pip install -e .
+cd ../calvin_models
+pip install -e .
+cd ../..
    ```bash
-   cd $LCRS_ROOT && sh install.sh
+      cd $LCRS_ROOT
+      conda env create -f environment.yml
+      source activate lcrs_venv
+      sh install.sh
+   ```
+
 3. **Configure W&B logger**
    Modify the `$LCRS_ROOT/conf/logger/wandb.yaml` file by setting the `project` field with the project name of your W&B workspace and the `entity` field with your W&B username.
 4. **Download data**
