@@ -12,6 +12,7 @@ import hydra
 
 logger = logging.getLogger(__name__)
 
+
 class Lcrs(pl.LightningModule, CalvinBaseModel):
 
     def __init__(
@@ -42,6 +43,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
     ):
         super(Lcrs, self).__init__()
         self.perceptual_encoder = hydra.utils.instantiate(perceptual_encoder)
+        self.language_encoder = hydra.utils.instantiate(language_goal)
         self.optimizer_config = optimizer
         self.lr_scheduler = lr_scheduler
 
@@ -73,18 +75,26 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         encodingLoss = torch.tensor(0.0).to(self.device)
 
         for self.modality_scope, dataset_batch in batch.items():
+            if (dataset_batch["lang"].shape[-1] == 0):
+                continue
+
             static = dataset_batch["rgb_obs"]["rgb_static"]
             gripper = dataset_batch["rgb_obs"]["rgb_gripper"]
+            language = dataset_batch["lang"]
 
             bs, ss, cs, hs, ws = static.shape
             bg, sg, cg, hg, wg = gripper.shape
 
             assert bs == bg and ss == sg and cs == cg
 
+            # VISUAL FEATURES EMBEDDING
             visual_features = self.perceptual_encoder(static.reshape(-1, cs, hs, ws), gripper.reshape(-1, cg, hg, wg))
             visual_features = visual_features.reshape(bs, ss, -1)
 
             encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(visual_features, dataset_batch["robot_obs"])
+
+            # LANGUAGE EMBEDDING
+            language_features = self.language_encoder(language)
 
         encodingLoss = encodingLoss * self.state_reconstruction_weight
 

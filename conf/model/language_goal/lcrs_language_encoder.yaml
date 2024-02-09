@@ -1,0 +1,5 @@
+_target_: lcrs.models.encoders.languageEncoder.LanguageEncoder
+in_size: 384
+out_size: 32
+hidden_size: 2048
+depth: 2

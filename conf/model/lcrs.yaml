@@ -4,7 +4,7 @@ defaults:
   - plan_recognition: transformers
   - distribution:  discrete
   - visual_goal: default
-  - language_goal: default
+  - language_goal: lcrs_language_encoder
   - action_decoder: hulc_default
   - optimizer: adam
   - lr_scheduler: constant
