@@ -31,4 +31,4 @@ Don't worry about the errors like `ERROR: pip's dependency resolver does not cur
 
 # Training
 ```bash
-python lcrs/training.py datamodule.root_data_dir=/path/to/dataset datamodule/datasets=vision_lang_shm
+python lcrs/training.py datamodule.root_data_dir=/path/to/dataset
