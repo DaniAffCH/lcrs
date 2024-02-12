@@ -1,8 +1,8 @@
 defaults:
   - perceptual_encoder: lcrs_image_encoder
-  - plan_proposal: default
+  - plan_proposal: lcrs_plan_proposal
   - plan_recognition: transformers
-  - distribution:  discrete
+  - distribution:  lcrs_distribution
   - visual_goal: default
   - language_goal: lcrs_language_encoder
   - action_decoder: hulc_default

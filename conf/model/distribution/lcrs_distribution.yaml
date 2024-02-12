@@ -1,0 +1,3 @@
+_target_: lcrs.utils.distribution.Distribution
+category_size: 32
+class_size: 32

@@ -44,6 +44,8 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         super(Lcrs, self).__init__()
         self.perceptual_encoder = hydra.utils.instantiate(perceptual_encoder)
         self.language_encoder = hydra.utils.instantiate(language_goal)
+        self.distribution = hydra.utils.instantiate(distribution)
+        self.plan_proposal = hydra.utils.instantiate(plan_proposal, dist=self.distribution)
         self.optimizer_config = optimizer
         self.lr_scheduler = lr_scheduler
 
@@ -60,6 +62,11 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             on_step=False,
             on_epoch=True,
         )
+
+    def train_plan(self, plan, **kwargs):
+        # kwargs must contain all the parameters of the plan
+
+        pass
 
     def training_step(self, batch: Dict[str, Dict], batch_idx: int) -> torch.Tensor:
         '''
@@ -88,13 +95,16 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             assert bs == bg and ss == sg and cs == cg
 
             # VISUAL FEATURES EMBEDDING
-            visual_features = self.perceptual_encoder(static.reshape(-1, cs, hs, ws), gripper.reshape(-1, cg, hg, wg))
-            visual_features = visual_features.reshape(bs, ss, -1)
+            visualFeatures = self.perceptual_encoder(static.reshape(-1, cs, hs, ws), gripper.reshape(-1, cg, hg, wg))
+            visualFeatures = visualFeatures.reshape(bs, ss, -1)
 
-            encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(visual_features, dataset_batch["robot_obs"])
+            encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(visualFeatures, dataset_batch["robot_obs"])
 
             # LANGUAGE EMBEDDING
-            language_features = self.language_encoder(language)
+            languageFeatures = self.language_encoder(language)
+
+            # PLAN PROPOSAL
+            planPropoal = self.plan_proposal(visual=visualFeatures[:, 0], language=languageFeatures)
 
         encodingLoss = encodingLoss * self.state_reconstruction_weight
 
