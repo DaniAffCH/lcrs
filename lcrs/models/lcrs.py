@@ -46,6 +46,8 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         self.language_encoder = hydra.utils.instantiate(language_goal)
         self.distribution = hydra.utils.instantiate(distribution)
         self.plan_proposal = hydra.utils.instantiate(plan_proposal, dist=self.distribution)
+        self.plan_recognition = hydra.utils.instantiate(plan_recognition, dist=self.distribution)
+
         self.optimizer_config = optimizer
         self.lr_scheduler = lr_scheduler
 
@@ -88,6 +90,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             static = dataset_batch["rgb_obs"]["rgb_static"]
             gripper = dataset_batch["rgb_obs"]["rgb_gripper"]
             language = dataset_batch["lang"]
+            obs_gt = dataset_batch["robot_obs"]
 
             bs, ss, cs, hs, ws = static.shape
             bg, sg, cg, hg, wg = gripper.shape
@@ -98,13 +101,18 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             visualFeatures = self.perceptual_encoder(static.reshape(-1, cs, hs, ws), gripper.reshape(-1, cg, hg, wg))
             visualFeatures = visualFeatures.reshape(bs, ss, -1)
 
-            encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(visualFeatures, dataset_batch["robot_obs"])
+            encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(visualFeatures, obs_gt)
 
             # LANGUAGE EMBEDDING
             languageFeatures = self.language_encoder(language)
 
             # PLAN PROPOSAL
-            planPropoal = self.plan_proposal(visual=visualFeatures[:, 0], language=languageFeatures)
+            planProposalState = self.plan_proposal(visual=visualFeatures[:, 0], language=languageFeatures)
+            planProposalDist = self.distribution.get_dist(planProposalState)
+
+            # PLAN RECOGNITION
+            planRecognitionState = self.plan_recognition(visualFeatures)
+            planRecognitionDist = self.distribution.get_dist(planRecognitionState)
 
         encodingLoss = encodingLoss * self.state_reconstruction_weight
 

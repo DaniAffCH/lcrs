@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
-
-
 import torch
 import torch.nn as nn
-from torch.nn.functional import binary_cross_entropy_with_logits, cross_entropy
 from utils.distribution import Distribution
 
 
