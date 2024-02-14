@@ -22,22 +22,20 @@ class ImageEncoder(nn.Module):
         self.train_decoder = hydra.utils.instantiate(train_decoder)
 
         self.conv_static = nn.Sequential(
-            # input shape: [N, 3, 200, 200]
-            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=8, stride=4),  # shape: [N, 32, 49, 49]
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=8, stride=4),
             nn.LeakyReLU(),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),  # shape: [N, 64, 23, 23]
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
             nn.LeakyReLU(),
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),  # shape: [N, 64, 21, 21]
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
             nn.LeakyReLU(),
         )
 
         self.conv_gripper = nn.Sequential(
-            # input shape: [N, 3, 84, 84]
-            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=7, padding=3, stride=1),  # shape: [N, 32, 84, 84]
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=7, padding=3, stride=1),
             nn.LeakyReLU(),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1, stride=2),  # shape: [N, 64, 42, 42]
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1, stride=2),
             nn.LeakyReLU(),
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1, stride=2),  # shape: [N, 64, 21, 21]
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1, stride=2),
             nn.LeakyReLU(),
         )
 

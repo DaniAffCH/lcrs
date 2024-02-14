@@ -1,0 +1,14 @@
+_target_: lcrs.models.decoders.actionDecoder.ActionDecoder
+_recursive_: false
+visual_features: ${model.perceptual_encoder.visual_features}
+language_features: ${model.language_goal.out_size}
+plan_features: ${model.plan_proposal.plan_features}
+hidden_size: 2048
+action_space_size: ${datamodule.action_space}
+mixtures: 16
+defaults:
+ - decoder: default 
+ - piDecoder: default
+ - muDecoder: default
+ - sigmaDecoder: default
+ - gripperDecoder: default

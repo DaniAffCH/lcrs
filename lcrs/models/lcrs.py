@@ -47,6 +47,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         self.distribution = hydra.utils.instantiate(distribution)
         self.plan_proposal = hydra.utils.instantiate(plan_proposal, dist=self.distribution)
         self.plan_recognition = hydra.utils.instantiate(plan_recognition, dist=self.distribution)
+        self.action_decoder = hydra.utils.instantiate(action_decoder)
 
         self.optimizer_config = optimizer
         self.lr_scheduler = lr_scheduler
@@ -113,6 +114,10 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             # PLAN RECOGNITION
             planRecognitionState = self.plan_recognition(visualFeatures)
             planRecognitionDist = self.distribution.get_dist(planRecognitionState)
+            sampled_plan = torch.flatten(planRecognitionDist.rsample(), start_dim=-2, end_dim=-1)
+
+            # ACTION GENERATION
+            self.action_decoder(sampled_plan, visualFeatures, languageFeatures)
 
         encodingLoss = encodingLoss * self.state_reconstruction_weight
 

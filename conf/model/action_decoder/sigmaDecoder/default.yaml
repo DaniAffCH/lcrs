@@ -1,0 +1,5 @@
+_target_: lcrs.models.decoders.baseDecoder.BaseDecoder
+in_size: ${model.action_decoder.hidden_size}
+out_size: ???
+hidden_size: ${model.action_decoder.hidden_size}
+depth: 0
