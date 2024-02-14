@@ -92,6 +92,8 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             gripper = dataset_batch["rgb_obs"]["rgb_gripper"]
             language = dataset_batch["lang"]
             obs_gt = dataset_batch["robot_obs"]
+            proprioceptive = dataset_batch["state_info"]["robot_obs"]
+            actions_gt = dataset_batch["actions"]
 
             bs, ss, cs, hs, ws = static.shape
             bg, sg, cg, hg, wg = gripper.shape
@@ -117,7 +119,9 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             sampled_plan = torch.flatten(planRecognitionDist.rsample(), start_dim=-2, end_dim=-1)
 
             # ACTION GENERATION
-            self.action_decoder(sampled_plan, visualFeatures, languageFeatures)
+            pi, mu, sigma, gripperAct = self.action_decoder(sampled_plan, visualFeatures, languageFeatures)
+            logistics_loss, gripper_act_loss = self.action_decoder.getLoss(
+                actions_gt, proprioceptive, pi, mu, sigma, gripperAct)
 
         encodingLoss = encodingLoss * self.state_reconstruction_weight
 
