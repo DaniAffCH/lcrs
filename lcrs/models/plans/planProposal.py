@@ -2,6 +2,8 @@
 import torch
 import torch.nn as nn
 from utils.distribution import Distribution
+from utils.distribution import State
+import torch.distributions as D
 
 
 class PlanProposal(nn.Module):
@@ -32,3 +34,15 @@ class PlanProposal(nn.Module):
         x = torch.cat([visual, language], dim=-1)
         dist_x = self.fc(x)
         return self.dist.get_state(dist_x)
+
+    def getLoss(self, planProposalState: State, planRecognitionState: State) -> torch.Tensor:
+        planProposalDist = self.dist.get_dist(planProposalState)
+        planRecognitionDist = self.dist.get_dist(planRecognitionState)
+
+        planProposalDistDetached = self.dist.get_dist(self.dist.detach_state(planProposalState))
+        planRecognitionDistDetached = self.dist.get_dist(self.dist.detach_state(planRecognitionState))
+
+        kl_lhs = D.kl_divergence(planRecognitionDistDetached, planProposalDist).mean()
+        kl_rhs = D.kl_divergence(planRecognitionDist, planProposalDistDetached).mean()
+
+        return 0.8 * kl_lhs + 0.2 * kl_rhs  # The kl divergence is not symmetric!

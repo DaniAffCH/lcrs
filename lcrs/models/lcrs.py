@@ -23,9 +23,8 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         language_goal: DictConfig,
         visual_goal: DictConfig,
         action_decoder: DictConfig,
-        kl_beta: float,
-        kl_balancing_mix: float,
         state_reconstruction_weight: float,
+        plan_weight: float,
         action_gripper_weight: float,
         action_joints_weight: float,
         use_bc_z_auxiliary_loss: bool,
@@ -55,6 +54,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         self.lr_scheduler = lr_scheduler
 
         self.state_reconstruction_weight = state_reconstruction_weight
+        self.plan_weight = plan_weight
         self.action_gripper_weight = action_gripper_weight
         self.action_joints_weight = action_joints_weight
 
@@ -62,10 +62,16 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
     def on_train_epoch_start(self) -> None:
         logger.info(f"Start training epoch {self.current_epoch}")
 
-    def logUpdate(self, encodingLoss, actionLoss, gripperLoss) -> None:
+    def logUpdate(self, encodingLoss, planLoss, actionLoss, gripperLoss) -> None:
         self.log(
             "train/encoding_loss",
             encodingLoss,
+            on_step=False,
+            on_epoch=True,
+        )
+        self.log(
+            "train/plan_loss",
+            planLoss,
             on_step=False,
             on_epoch=True,
         )
@@ -81,8 +87,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             on_step=False,
             on_epoch=True,
         )
-
-        tot = encodingLoss + actionLoss + gripperLoss
+        tot = encodingLoss + actionLoss + gripperLoss + planLoss
         self.log(
             "train/total_loss",
             tot,
@@ -104,11 +109,11 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         encodingLoss = torch.tensor(0.0).to(self.device)
         actionLoss = torch.tensor(0.0).to(self.device)
         gripperLoss = torch.tensor(0.0).to(self.device)
+        planLoss = torch.tensor(0.0).to(self.device)
 
-        for self.modality_scope, dataset_batch in batch.items():
-            if (dataset_batch["lang"].shape[-1] == 0):
+        for modalityScope, dataset_batch in batch.items():
+            if modalityScope != "lang":  # skip visual goal
                 continue
-
             static = dataset_batch["rgb_obs"]["rgb_static"]
             gripper = dataset_batch["rgb_obs"]["rgb_gripper"]
             language = dataset_batch["lang"]
@@ -132,12 +137,13 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             # PLAN PROPOSAL
             planProposalState = self.plan_proposal(visual=visualFeatures[:, 0], language=languageFeatures)
-            planProposalDist = self.distribution.get_dist(planProposalState)
 
             # PLAN RECOGNITION
             planRecognitionState = self.plan_recognition(visualFeatures)
             planRecognitionDist = self.distribution.get_dist(planRecognitionState)
             sampled_plan = torch.flatten(planRecognitionDist.rsample(), start_dim=-2, end_dim=-1)
+
+            planLoss = planLoss + self.plan_proposal.getLoss(planProposalState, planRecognitionState)
 
             # ACTION GENERATION
             pi, mu, sigma, gripperAct = self.action_decoder(sampled_plan, visualFeatures, languageFeatures)
@@ -148,12 +154,13 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             gripperLoss = gripperLoss + gripper_act_loss
 
         encodingLoss = encodingLoss * self.state_reconstruction_weight
+        planLoss = planLoss * self.plan_weight
         actionLoss = actionLoss * self.action_joints_weight
         gripperLoss = gripperLoss * self.action_gripper_weight
 
-        self.logUpdate(encodingLoss, actionLoss, gripperLoss)
+        self.logUpdate(encodingLoss, planLoss, actionLoss, gripperLoss)
 
-        loss = encodingLoss + actionLoss + gripperLoss
+        loss = encodingLoss + planLoss + actionLoss + gripperLoss
         return loss
 
     def configure_optimizers(self):

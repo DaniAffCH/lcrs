@@ -16,11 +16,11 @@ defaults:
 _target_: lcrs.models.lcrs.Lcrs
 _recursive_: false
 
-kl_beta: ${loss.kl_beta}
-kl_balancing_mix: ${loss.kl_balancing_mix}
 state_reconstruction_weight: ${loss.state_reconstruction_weight}
+plan_weight: ${loss.plan_weight}
 action_gripper_weight: ${loss.action_gripper_weight}
 action_joints_weight: ${loss.action_joints_weight}
+
 use_bc_z_auxiliary_loss: false
 bc_z_auxiliary_loss_beta: ${loss.bc_z_auxiliary_loss_beta}
 use_mia_auxiliary_loss: false
