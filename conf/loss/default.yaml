@@ -1,7 +1,5 @@
 state_reconstruction_weight: 0.5
+language_weight: 3.0
 plan_weight: 0.01
 action_gripper_weight: 1.0
 action_joints_weight: 1.0
-bc_z_auxiliary_loss_beta: 1.0
-mia_auxiliary_loss_beta: 1.0
-clip_auxiliary_loss_beta: 3.0

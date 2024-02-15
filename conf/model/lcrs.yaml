@@ -3,28 +3,19 @@ defaults:
   - plan_proposal: lcrs_plan_proposal
   - plan_recognition: lcrs_plan_recognition
   - distribution:  lcrs_distribution
-  - visual_goal: default
   - language_goal: lcrs_language_encoder
   - action_decoder: lcrs_action_decoder
   - optimizer: adam
   - lr_scheduler: constant
-  - bc_z_lang_decoder: none
-  - mia_lang_discriminator: none
-  - proj_vis_lang: default
   - /annotations@val_instructions: new_playtable_validation
 
 _target_: lcrs.models.lcrs.Lcrs
 _recursive_: false
 
 state_reconstruction_weight: ${loss.state_reconstruction_weight}
+language_weight: ${loss.language_weight}
 plan_weight: ${loss.plan_weight}
 action_gripper_weight: ${loss.action_gripper_weight}
 action_joints_weight: ${loss.action_joints_weight}
 
-use_bc_z_auxiliary_loss: false
-bc_z_auxiliary_loss_beta: ${loss.bc_z_auxiliary_loss_beta}
-use_mia_auxiliary_loss: false
-mia_auxiliary_loss_beta: ${loss.mia_auxiliary_loss_beta}
 replan_freq: 30
-use_clip_auxiliary_loss: true
-clip_auxiliary_loss_beta: ${loss.clip_auxiliary_loss_beta}

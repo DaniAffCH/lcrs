@@ -1,5 +1,6 @@
 _target_: lcrs.models.encoders.languageEncoder.LanguageEncoder
 in_size: 384
 out_size: 32
+plan_features_size: ${model.plan_proposal.plan_features}
 hidden_size: 2048
 depth: 2

@@ -54,13 +54,13 @@ class PlanRecognition(nn.Module):
             layers.append(nn.Linear(in_features=hidden_size, out_features=hidden_size))
             layers.append(nn.ReLU())
 
-        layers.append(nn.Linear(in_features=hidden_size, out_features=plan_features))
-
         self.fc = nn.Sequential(*layers)
+        self.stateProj = nn.Linear(in_features=hidden_size, out_features=plan_features)
 
     def forward(self, visual_video: torch.Tensor) -> torch.Tensor:
         pos_encoded = self.pos_encoder(visual_video.permute(1, 0, 2))
         x = self.transformer_encoder(pos_encoded)
         x = self.fc(x.permute(1, 0, 2))
-        dist_x = torch.mean(x, dim=1)  # TODO: there could be a better way to aggregate data
-        return self.dist.get_state(dist_x)
+        x = torch.mean(x, dim=1)  # TODO: there could be a better way to aggregate data
+        state = self.stateProj(x)
+        return self.dist.get_state(state), x

@@ -1,5 +1,0 @@
-_target_: hulc.models.auxiliary_loss_networks.proj_vis_lang.ProjVisLang
-im_dim: ${model.plan_recognition.hidden_size}
-lang_dim: ${model.language_goal.out_size}
-output_dim: ${model.language_goal.out_size}
-proj_lang: true
