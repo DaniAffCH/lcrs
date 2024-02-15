@@ -3,17 +3,13 @@ from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.loggers import Logger
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning import Callback, LightningModule, seed_everything, Trainer
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 import hydra
-from datetime import timedelta
 import logging
 from pathlib import Path
 import sys
-from typing import List, Union
+from typing import List
 import lcrs
-
-from lightning_lite.accelerators.cuda import num_cuda_devices
-from pytorch_lightning.strategies import DDPStrategy
 
 
 logger = logging.getLogger(__name__)
@@ -21,26 +17,10 @@ logger = logging.getLogger(__name__)
 
 @hydra.main(config_path="../conf", config_name="config")
 def train(cfg: DictConfig) -> None:
-    """
-    This is called to start a training.
-
-    Args:
-        cfg: hydra config
-    """
-    # sets seeds for numpy, torch, python.random and PYTHONHASHSEED.
     seed_everything(cfg.seed, workers=True)
     datamodule = hydra.utils.instantiate(cfg.datamodule, training_repo_root=Path(lcrs.__file__).parents[1])
-    # chk = get_last_checkpoint(Path.cwd())
-
-    # Load Model
-    # if chk is not None:
-    # model = getattr(models_m, cfg.model["_target_"].split(".")[-1]).load_from_checkpoint(chk.as_posix())
-    # else:
     model = hydra.utils.instantiate(cfg.model)
-    # if "pretrain_chk" in cfg:
-    # initialize_pretrained_weights(model, cfg)
 
-    log_rank_0(f"Training with the following config:\n{OmegaConf.to_yaml(cfg)}")
     log_rank_0(print_system_env_info())
 
     train_logger = setup_logger(cfg, model)
@@ -57,8 +37,6 @@ def train(cfg: DictConfig) -> None:
 
     trainer = Trainer(**trainer_args)
 
-    # Start training
-    # trainer.fit(model, datamodule=datamodule, ckpt_path=chk)  # type: ignore
     trainer.fit(model, datamodule=datamodule)  # type: ignore
 
 
@@ -93,7 +71,6 @@ def setup_logger(cfg: DictConfig, model: LightningModule) -> Logger:
         cfg.logger.name = pathlib_cwd.parent.name + "/" + pathlib_cwd.name
         cfg.logger.id = cfg.logger.name.replace("/", "_")
         train_logger = hydra.utils.instantiate(cfg.logger)
-        # train_logger.watch(model)
     else:
         train_logger = hydra.utils.instantiate(cfg.logger)
     return train_logger
@@ -126,7 +103,6 @@ def modify_argv_hydra() -> None:
 
 @rank_zero_only
 def log_rank_0(*args, **kwargs):
-    # when using ddp, only log with rank 0 process
     logger.info(*args, **kwargs)
 
 
