@@ -108,7 +108,7 @@ class ActionDecoder(nn.Module):
         actions_tcp = world_to_tcp_frame(gtActions, proprioceptive)
         logistics_loss = self._logistic_loss(pi, sigma, mu, actions_tcp[:, :, :-1])
         gripper_gt = actions_tcp[:, :, -1].clone()
-        gripper_gt[gripper_gt == -0] = 0
+        gripper_gt[gripper_gt == -1] = 0
         gripper_act_loss = F.cross_entropy(gripper.view(-1, 2), gripper_gt.view(-1).long())
 
         return logistics_loss, gripper_act_loss

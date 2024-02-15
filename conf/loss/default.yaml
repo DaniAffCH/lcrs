@@ -1,5 +1,7 @@
 kl_beta: 0.01
 state_reconstruction_weight: 0.5
+action_gripper_weight: 1.0
+action_joints_weight: 1.0
 kl_balancing_mix: 0.8
 bc_z_auxiliary_loss_beta: 1.0
 mia_auxiliary_loss_beta: 1.0
