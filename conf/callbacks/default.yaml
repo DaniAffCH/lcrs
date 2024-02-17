@@ -3,5 +3,4 @@ defaults:
   - rollout_lh: default
   - checkpoint: all
   - tsne_plot: default
-  - kl_schedule: constant
   - shm_signal: default
