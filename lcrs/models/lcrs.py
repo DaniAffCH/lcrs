@@ -147,7 +147,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             planLoss = planLoss + self.plan_proposal.getLoss(planProposalState, planRecognitionState)
 
-            languageLoss = languageLoss + self.language_encoder.getLoss(
+            languageLoss = languageLoss + self.language_encoder.getLossAlternative(
                 planRecognitionState.logit, languageFeatures, aux_lang)
 
             # ACTION GENERATION
