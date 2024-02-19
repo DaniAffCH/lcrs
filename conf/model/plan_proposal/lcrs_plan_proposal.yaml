@@ -1,6 +1,5 @@
 _target_: lcrs.models.plans.planProposal.PlanProposal
 visual_features: ${model.perceptual_encoder.visual_features}
 language_features: ${model.language_goal.out_size}
-plan_features: 1024
 hidden_size: 2048
 depth: 1

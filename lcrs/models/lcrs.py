@@ -37,11 +37,11 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
     ):
         super(Lcrs, self).__init__()
         self.perceptual_encoder = hydra.utils.instantiate(perceptual_encoder)
-        self.language_encoder = hydra.utils.instantiate(language_goal)
         self.distribution = hydra.utils.instantiate(distribution)
+        self.language_encoder = hydra.utils.instantiate(language_goal, dist=self.distribution)
         self.plan_proposal = hydra.utils.instantiate(plan_proposal, dist=self.distribution)
         self.plan_recognition = hydra.utils.instantiate(plan_recognition, dist=self.distribution)
-        self.action_decoder = hydra.utils.instantiate(action_decoder)
+        self.action_decoder = hydra.utils.instantiate(action_decoder, dist=self.distribution)
 
         self.optimizer_config = optimizer
         self.lr_scheduler = lr_scheduler
@@ -51,6 +51,8 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         self.plan_weight = plan_weight
         self.action_gripper_weight = action_gripper_weight
         self.action_joints_weight = action_joints_weight
+
+        self.save_hyperparameters()
 
     @rank_zero_only
     def on_train_epoch_start(self) -> None:

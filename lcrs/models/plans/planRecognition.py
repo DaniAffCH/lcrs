@@ -34,7 +34,6 @@ class PlanRecognition(nn.Module):
         self,
         visual_features: int,
         hidden_size: int,
-        plan_features: int,
         depth: int,
         transformer_heads: int,
         dropout: float,
@@ -43,6 +42,8 @@ class PlanRecognition(nn.Module):
         super(PlanRecognition, self).__init__()
         in_size = visual_features
         self.dist = dist
+
+        plan_features = dist.class_size * dist.category_size
 
         self.pos_encoder = PositionalEncoding(in_size, dropout)
         encoder_layers = TransformerEncoderLayer(in_size, transformer_heads, hidden_size, dropout)

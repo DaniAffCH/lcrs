@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from torch.nn.functional import cross_entropy
 import numpy as np
+from utils.distribution import Distribution
 
 
 class LanguageEncoder(nn.Module):
@@ -12,11 +13,12 @@ class LanguageEncoder(nn.Module):
         self,
         in_size: int,
         out_size: int,
-        plan_features_size: int,
         hidden_size: int,
-        depth: int
+        depth: int,
+        dist: Distribution
     ):
         super(LanguageEncoder, self).__init__()
+        plan_features = dist.class_size * dist.category_size
 
         layers = [nn.Linear(in_features=in_size, out_features=hidden_size),
                   nn.ReLU(),]
@@ -28,7 +30,7 @@ class LanguageEncoder(nn.Module):
 
         self.fc = nn.Sequential(*layers)
 
-        self.planProjection = nn.Linear(in_features=plan_features_size, out_features=out_size)
+        self.planProjection = nn.Linear(in_features=plan_features, out_features=out_size)
         self.languageProjection = nn.Linear(in_features=out_size, out_features=out_size)
 
         self.temperature = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))

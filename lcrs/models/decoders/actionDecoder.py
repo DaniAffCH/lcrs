@@ -7,6 +7,7 @@ from omegaconf import DictConfig
 import hydra
 import torch.nn.functional as F
 from lcrs.utils.gripper_control import world_to_tcp_frame
+from utils.distribution import Distribution
 
 
 def log_sum_exp(x):
@@ -26,15 +27,16 @@ class ActionDecoder(nn.Module):
                  gripperDecoder: DictConfig,
                  visual_features: int,
                  language_features: int,
-                 plan_features: int,
                  hidden_size: int,
                  action_space_size: int,
-                 mixtures: int):
+                 mixtures: int,
+                 dist: Distribution
+                 ):
         super().__init__()
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        in_features = visual_features + language_features + plan_features
+        in_features = visual_features + language_features + dist.class_size * dist.category_size
         self.mixtures = mixtures
         self.action_space_size = action_space_size - 1  # remove the gripper
         out_features_gmm = self.action_space_size * mixtures

@@ -1,7 +1,6 @@
 _target_: lcrs.models.plans.planRecognition.PlanRecognition
 visual_features: ${model.perceptual_encoder.visual_features}
 hidden_size: 2048
-plan_features: ${model.plan_proposal.plan_features}
 depth: 2
 transformer_heads: 8
 dropout: 0.1

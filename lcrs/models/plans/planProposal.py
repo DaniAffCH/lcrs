@@ -11,7 +11,6 @@ class PlanProposal(nn.Module):
         self,
         visual_features: int,
         language_features: int,
-        plan_features: int,
         hidden_size: int,
         depth: int,
         dist: Distribution
@@ -19,6 +18,8 @@ class PlanProposal(nn.Module):
         super(PlanProposal, self).__init__()
         self.dist = dist
         in_size = visual_features + language_features
+
+        plan_features = dist.class_size * dist.category_size
 
         layers = [nn.Linear(in_features=in_size, out_features=hidden_size),
                   nn.ReLU(),]
