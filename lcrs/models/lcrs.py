@@ -97,6 +97,80 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             on_epoch=True,
         )
 
+    def forward(self, static, gripper, language, isTraining=False):
+        '''
+        Output structure:
+        - features:
+            - visual
+            - language
+        - plan:
+            - proposal:
+                - state
+                - sampled
+            - recognition: (defined only if isTraining is True)
+                - state
+                - sampled
+        - action:
+            - pi
+            - mu
+            - sigma
+            - gripper
+        '''
+
+        bs, ss, cs, hs, ws = static.shape
+        bg, sg, cg, hg, wg = gripper.shape
+
+        assert bs == bg and ss == sg and cs == cg
+
+        plan = None
+        planRecognitionState = None
+        sampledRecognitionPlan = None
+
+        # VISUAL FEATURES EMBEDDING
+        visualFeatures = self.perceptual_encoder(static.reshape(-1, cs, hs, ws), gripper.reshape(-1, cg, hg, wg))
+        visualFeatures = visualFeatures.reshape(bs, ss, -1)
+
+        # LANGUAGE EMBEDDING
+        languageFeatures = self.language_encoder(language)
+
+        # PLAN PROPOSAL
+        # TODO: check if the dimensions match both in the validation and in plain inference
+        planProposalState = self.plan_proposal(visual=visualFeatures[:, 0], language=languageFeatures)
+
+        # PLAN PROPOSAL SAMPLING
+        planProposalDist = self.distribution.get_dist(planProposalState)
+        sampledProposalPlan = torch.flatten(planProposalDist.rsample(), start_dim=-2, end_dim=-1)
+        plan = sampledProposalPlan
+
+        if isTraining:
+            # PLAN RECOGNITION
+            planRecognitionState, planFeatures = self.plan_recognition(visualFeatures)
+
+            # PLAN RECOGNITION SAMPLING
+            planRecognitionDist = self.distribution.get_dist(planRecognitionState)
+            sampledRecognitionPlan = torch.flatten(planRecognitionDist.rsample(), start_dim=-2, end_dim=-1)
+
+            plan = sampledRecognitionPlan
+
+        # ACTION GENERATION
+        pi, mu, sigma, gripperAct = self.action_decoder(plan, visualFeatures, languageFeatures)
+
+        return {"features":
+                {"visual": visualFeatures,
+                 "language": languageFeatures},
+                "plan":
+                    {"proposal":
+                        {"state": planProposalState,
+                         "sampled": sampledProposalPlan},
+                     "recognition":
+                        {"state": planRecognitionState,
+                         "sampled": sampledRecognitionPlan}},
+                "action":
+                    {"pi": pi,
+                     "mu": mu,
+                     "sigma": sigma,
+                     "gripper": gripperAct}}
+
     def training_step(self, batch: Dict[str, Dict], batch_idx: int) -> torch.Tensor:
         '''
 
@@ -114,6 +188,9 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         gripperLoss = torch.tensor(0.0).to(self.device)
         planLoss = torch.tensor(0.0).to(self.device)
 
+        batchSize = 1
+        auxSize = 1
+
         for modalityScope, dataset_batch in batch.items():
             if modalityScope != "lang":  # skip visual goal
                 continue
@@ -125,46 +202,36 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             actions_gt = dataset_batch["actions"]
             aux_lang = dataset_batch["use_for_aux_lang_loss"]
 
-            bs, ss, cs, hs, ws = static.shape
-            bg, sg, cg, hg, wg = gripper.shape
+            batchSize = dataset_batch["actions"].shape[0]
+            auxSize = max(1.0, torch.sum(dataset_batch["use_for_aux_lang_loss"]).detach())
 
-            assert bs == bg and ss == sg and cs == cg
+            out = self(static, gripper, language, True)
 
-            # VISUAL FEATURES EMBEDDING
-            visualFeatures = self.perceptual_encoder(static.reshape(-1, cs, hs, ws), gripper.reshape(-1, cg, hg, wg))
-            visualFeatures = visualFeatures.reshape(bs, ss, -1)
+            # LOSSES
 
-            encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(visualFeatures, obs_gt)
+            encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(out["features"]["visual"], obs_gt)
 
-            # LANGUAGE EMBEDDING
-            languageFeatures = self.language_encoder(language)
+            planLoss = planLoss + \
+                self.plan_proposal.getLoss(out["plan"]["proposal"]["state"], out["plan"]["recognition"]["state"])
 
-            # PLAN PROPOSAL
-            planProposalState = self.plan_proposal(visual=visualFeatures[:, 0], language=languageFeatures)
-
-            # PLAN RECOGNITION
-            planRecognitionState, planFeatures = self.plan_recognition(visualFeatures)
-            planRecognitionDist = self.distribution.get_dist(planRecognitionState)
-            sampled_plan = torch.flatten(planRecognitionDist.rsample(), start_dim=-2, end_dim=-1)
-
-            planLoss = planLoss + self.plan_proposal.getLoss(planProposalState, planRecognitionState)
-
-            languageLoss = languageLoss + self.language_encoder.getLossAlternative(
-                planRecognitionState.logit, languageFeatures, aux_lang)
-
-            # ACTION GENERATION
-            pi, mu, sigma, gripperAct = self.action_decoder(sampled_plan, visualFeatures, languageFeatures)
+            languageLoss = languageLoss + self.language_encoder.getLoss(
+                out["plan"]["recognition"]["state"].logit, out["features"]["language"], aux_lang)
 
             logistics_loss, gripper_act_loss = self.action_decoder.getLoss(
-                actions_gt, proprioceptive, pi, mu, sigma, gripperAct)
+                actions_gt, proprioceptive, out["action"]["pi"], out["action"]["mu"], out["action"]["sigma"], out["action"]["gripper"])
             actionLoss = actionLoss + logistics_loss
             gripperLoss = gripperLoss + gripper_act_loss
 
         encodingLoss = encodingLoss * self.state_reconstruction_weight
+        encodingLoss /= batchSize
         languageLoss = languageLoss * self.language_weight
+        languageLoss /= auxSize
         planLoss = planLoss * self.plan_weight
+        planLoss /= batchSize
         actionLoss = actionLoss * self.action_joints_weight
+        actionLoss /= batchSize
         gripperLoss = gripperLoss * self.action_gripper_weight
+        gripperLoss /= batchSize
 
         self.logUpdate(encodingLoss, languageLoss, planLoss, actionLoss, gripperLoss)
 

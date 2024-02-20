@@ -44,7 +44,7 @@ def train(cfg: DictConfig) -> None:
 
     trainer = Trainer(**trainer_args)
 
-    trainer.fit(model, datamodule=datamodule)  # type: ignore
+    trainer.fit(model, datamodule=datamodule)
 
 
 def setup_callbacks(callbacks_cfg: DictConfig) -> List[Callback]:
