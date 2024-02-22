@@ -246,7 +246,109 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             "optimizer": optimizer,
             "lr_scheduler": {"scheduler": scheduler, "interval": "step", "frequency": 1},
         }
+    def validation_step(self, batch: Dict[str, Dict], batch_idx: int) -> Dict[str, torch.Tensor]:
+        '''
+        todo
+        '''
+        output = {}
+        val_total_act_loss = torch.tensor(0.0).to(self.device)
+        for modalityScope, dataset_batch in batch.items():
+            perceptual_emb = self.perceptual_encoder(dataset_batch["rgb_obs"], dataset_batch["depth_obs"], dataset_batch["robot_obs"])
+            # if self.state_recons: #state_reconstruction_weight?
+            #     state_recon_loss = self.preceptual_encoder.state_reconstruction_loss()
+            #     self.log(f"val/proprio_loss_{self.modality_scope}", state_recon_loss, sync_dist=True)
+            # if "lang" in self.modality_scope:
+                # latent_goal = self.language_goal(dataset_batch["lang"])
+            # else:
+                # latent_goal = self.visual_goal(perceptual_emb[:, -1])
+            
+            if modalityScope != "lang":
+                continue #skip visual goal 
+            # Variable mapping
+            static = dataset_batch["rgb_obs"]["rgb_static"]
+            gripper = dataset_batch["rgb_obs"]["rgb_gripper"]
+            language = dataset_batch["lang"]
+            # obs_gt = dataset_batch["robot_obs"]
+            proprioceptive = dataset_batch["state_info"]["robot_obs"]
+            actions_gt = dataset_batch["actions"]
+            # aux_lang = dataset_batch["use_for_aux_lang_loss"]
 
+            # batchSize = dataset_batch["actions"].shape[0]
+            # auxSize = max(1.0, torch.sum(dataset_batch["use_for_aux_lang_loss"]).detach())
+
+            # out = self(static, gripper, language, True)
+
+            # Forward
+            sample_features, sample_plan, sample_act = self.forward(static=static, gripper=gripper, language=language, isTraining=false)
+            # TODO: Get loss
+            empty_plan = torch.empty((dataset_batch["actions"].shape[0]), 0).to(self.device)
+            
+
+            action_loss, sample_act = self.action_decoder.loss_and_act(  # type:  ignore
+                empty_plan, perceptual_emb, language, actions_gt, proprioceptive
+            )
+
+            # Calculate metrics
+            mae = torch.nn.functional.l1_loss(
+                sample_act[..., :-1], actions_gt[..., :-1], reduction="none"
+            )  # (batch, seq, 6)
+            mae = torch.mean(mae, 1)  # (batch, 6)
+            # gripper action
+            gripper_discrete = sample_act[..., -1]
+            gt_gripper_act = actions_gt[..., -1]
+            m = gripper_discrete > 0
+            gripper_discrete[m] = 1
+            gripper_discrete[~m] = -1
+            gripper_sr = torch.mean((gt_gripper_act == gripper_discrete).float())
+            # _, seq_feat = self.plan_recognition(perceptual_emb)
+
+            # if "lang" in modalityScope:
+            #     if self.use_bc_z_auxiliary_loss:
+            #         val_pred_lang_loss = self.bc_z_auxiliary_loss(
+            #             seq_feat, dataset_batch["lang"], dataset_batch["use_for_aux_lang_loss"]
+            #         )
+            #         self.log("val/lang_pred_loss", val_pred_lang_loss, sync_dist=True)
+                # if self.use_clip_auxiliary_loss:
+                #     val_pred_clip_loss = self.clip_auxiliary_loss(
+                #         seq_feat, latent_goal, dataset_batch["use_for_aux_lang_loss"]
+                #     )
+                #     self.log("val/val_pred_clip_loss", val_pred_clip_loss, sync_dist=True)
+                #     self.clip_groundtruth(seq_feat, dataset_batch["idx"], dataset_batch["use_for_aux_lang_loss"])
+                # if self.use_mia_auxiliary_loss:
+                #     val_pred_contrastive_loss = self.mia_auxiliary_loss(
+                #         seq_feat, latent_goal, dataset_batch["use_for_aux_lang_loss"]
+                #     )
+                    # self.log("val/lang_contrastive_loss", val_pred_contrastive_loss, sync_dist=True)
+            val_total_act_loss += action_loss
+            mae_mean = mae.mean()
+            pos_mae = mae[..., :3].mean()
+            orn_mae = mae[..., 3:6].mean()
+
+            # Logging
+            self.log(f"val_total_mae/{modalityScope}_total_mae", mae_mean, sync_dist=True)
+            self.log(f"val_pos_mae/{modalityScope}_pos_mae", pos_mae, sync_dist=True)
+            self.log(f"val_orn_mae/{modalityScope}_orn_mae", orn_mae, sync_dist=True)
+            self.log(f"val_act/{modalityScope}_act_loss", action_loss, sync_dist=True)
+            self.log(f"val_grip/{modalityScope}_grip_sr", gripper_sr, sync_dist=True)
+            self.log(
+                "val_act/action_loss",
+                val_total_act_loss / len(self.trainer.datamodule.modalities),  # type:ignore
+                sync_dist=True,
+            )
+            output[f"idx_{modalityScope}"] = dataset_batch["idx"]
+
+        return output
+
+            
+
+
+
+
+            
+
+
+
+        return super().validation_step(*args, **kwargs)
     def step(self, obs, goal):
         """
         Do one step of inference with the model.
