@@ -51,7 +51,7 @@ class ActionDecoder(nn.Module):
         self.action_max_bound = [1., 1., 1., 1., 1., 1., 1.,]
         self.action_min_bound = [-1., -1., -1., -1., -1., -1., -1.,]
 
-        # =============
+        # ============= TODO: refactor this
 
         self.gripper_bounds = torch.tensor([self.action_min_bound[-1], self.action_max_bound[-1]], device=self.device)
         self.action_max_bound = self.action_max_bound[:-1]
@@ -162,3 +162,25 @@ class ActionDecoder(nn.Module):
         log_probs = log_probs + F.log_softmax(logit_probs, dim=-1)
         loss = -torch.sum(log_sum_exp(log_probs), dim=-1).mean()
         return loss
+
+    # FROM HULC
+    def sample(self, pi: torch.Tensor, mu: torch.Tensor, sigma: torch.Tensor, gripper: torch.Tensor) -> torch.Tensor:
+
+        r1, r2 = 1e-5, 1.0 - 1e-5
+        temp = (r1 - r2) * torch.rand(mu.shape, device=mu.device) + r2
+        temp = pi - torch.log(-torch.log(temp))
+        argmax = torch.argmax(temp, -1)
+
+        dist = F.one_hot(argmax, num_classes=self.mixtures).float().to(mu.device)
+
+        sigma = (dist * sigma).sum(dim=-1)
+        mu = (dist * mu).sum(dim=-1)
+
+        scales = torch.exp(sigma)
+        u = (r1 - r2) * torch.rand(mu.shape, device=mu.device) + r2
+        actions = mu + scales * (torch.log(u) - torch.log(1.0 - u))
+
+        gripper_cmd = self.gripper_bounds[gripper.argmax(dim=-1)]
+        full_action = torch.cat([actions, gripper_cmd.unsqueeze(-1)], 2)
+
+        return full_action

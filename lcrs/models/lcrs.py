@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.utilities import rank_zero_only, rank_zero_info
 import torch
 import hydra
-
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -97,8 +97,12 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             on_epoch=True,
         )
 
-    def forward(self, static, gripper, language, isTraining=False):
+    def forward(self, static, gripper, language, recognizePlan=False, useRecognition=False):
         '''
+        Input:
+        recognizePlan: use the recognition network to sample a plan
+        useRecognition: use the plan from the recognition network to sample an action (otherwise the proposal network is used)
+
         Output structure:
         - features:
             - visual
@@ -107,7 +111,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             - proposal:
                 - state
                 - sampled
-            - recognition: (defined only if isTraining is True)
+            - recognition: (defined only if recognizePlan is True)
                 - state
                 - sampled
         - action:
@@ -116,6 +120,9 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             - sigma
             - gripper
         '''
+
+        # Use recognition => recognizePlan
+        assert not useRecognition or recognizePlan
 
         bs, ss, cs, hs, ws = static.shape
         bg, sg, cg, hg, wg = gripper.shape
@@ -140,9 +147,8 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         # PLAN PROPOSAL SAMPLING
         planProposalDist = self.distribution.get_dist(planProposalState)
         sampledProposalPlan = torch.flatten(planProposalDist.rsample(), start_dim=-2, end_dim=-1)
-        plan = sampledProposalPlan
 
-        if isTraining:
+        if recognizePlan:
             # PLAN RECOGNITION
             planRecognitionState, planFeatures = self.plan_recognition(visualFeatures)
 
@@ -150,7 +156,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             planRecognitionDist = self.distribution.get_dist(planRecognitionState)
             sampledRecognitionPlan = torch.flatten(planRecognitionDist.rsample(), start_dim=-2, end_dim=-1)
 
-            plan = sampledRecognitionPlan
+        plan = sampledRecognitionPlan if useRecognition else sampledProposalPlan
 
         # ACTION GENERATION
         pi, mu, sigma, gripperAct = self.action_decoder(plan, visualFeatures, languageFeatures)
@@ -205,7 +211,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             batchSize = dataset_batch["actions"].shape[0]
             auxSize = max(1.0, torch.sum(dataset_batch["use_for_aux_lang_loss"]).detach())
 
-            out = self(static, gripper, language, True)
+            out = self(static, gripper, language, True, True)
 
             # LOSSES
 
@@ -237,6 +243,97 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
         loss = encodingLoss + planLoss + actionLoss + gripperLoss + languageLoss
         return loss
+
+    def validation_step(self, batch: Dict[str, Dict], batch_idx: int) -> Dict[str, torch.Tensor]:
+        encodingLoss = torch.tensor(0.0).to(self.device)
+        languageLoss = torch.tensor(0.0).to(self.device)
+        actionLossProposal = torch.tensor(0.0).to(self.device)
+        actionLossRecognition = torch.tensor(0.0).to(self.device)
+        gripperLossProposal = torch.tensor(0.0).to(self.device)
+        gripperLossRecognition = torch.tensor(0.0).to(self.device)
+
+        planLoss = torch.tensor(0.0).to(self.device)
+
+        actionMseProposal = torch.tensor(0.0).to(self.device)
+        actionMseRecognition = torch.tensor(0.0).to(self.device)
+
+        gripperAccuracyProposal = torch.tensor(0.0).to(self.device)
+        gripperAccuracyRecognition = torch.tensor(0.0).to(self.device)
+
+        for modalityScope, dataset_batch in batch.items():
+            if modalityScope != "lang":  # skip visual goal
+                continue
+            static = dataset_batch["rgb_obs"]["rgb_static"]
+            gripper = dataset_batch["rgb_obs"]["rgb_gripper"]
+            language = dataset_batch["lang"]
+            obs_gt = dataset_batch["robot_obs"]
+            proprioceptive = dataset_batch["state_info"]["robot_obs"]
+            actions_gt = dataset_batch["actions"]
+            aux_lang = dataset_batch["use_for_aux_lang_loss"]
+
+            batchSize = dataset_batch["actions"].shape[0]
+            auxSize = max(1.0, torch.sum(dataset_batch["use_for_aux_lang_loss"]).detach())
+
+            # proposal feedforward
+            out = self(static, gripper, language, True, False)
+
+            # plan independent metrics
+            encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(out["features"]["visual"], obs_gt)
+
+            planLoss = planLoss + \
+                self.plan_proposal.getLoss(out["plan"]["proposal"]["state"], out["plan"]["recognition"]["state"])
+
+            languageLoss = languageLoss + self.language_encoder.getLoss(
+                out["plan"]["recognition"]["state"].logit, out["features"]["language"], aux_lang)
+
+            # plan proposal metrics
+
+            logistics_loss, gripper_act_loss = self.action_decoder.getLoss(
+                actions_gt, proprioceptive, out["action"]["pi"], out["action"]["mu"], out["action"]["sigma"], out["action"]["gripper"])
+            actionLossProposal = actionLossProposal + logistics_loss
+            gripperLossProposal = gripperLossProposal + gripper_act_loss
+
+            sampledAction = self.action_decoder.sample(**out["action"])
+
+            sampledJointAction = sampledAction[:, :, :-1]
+            sampledGripperAction = sampledAction[:, :, -1]
+
+            sampledGripperConverted = torch.where(sampledGripperAction > 0, 1, -1)
+
+            gripperAccuracyProposal = gripperAccuracyProposal + \
+                torch.mean((actions_gt[:, :, -1] == sampledGripperConverted).float())
+            actionMseProposal = actionMseProposal + \
+                torch.nn.functional.mse_loss(sampledJointAction, actions_gt[:, :, :-1])
+
+            # recognition feedforward (terribly unefficient but needed for keeping the code clean :) )
+            out = self(static, gripper, language, True, True)
+
+            # plan recognition metrics
+
+            logistics_loss, gripper_act_loss = self.action_decoder.getLoss(
+                actions_gt, proprioceptive, out["action"]["pi"], out["action"]["mu"], out["action"]["sigma"], out["action"]["gripper"])
+            actionLossRecognition = actionLossRecognition + logistics_loss
+            gripperLossRecognition = gripperLossRecognition + gripper_act_loss
+
+            sampledAction = self.action_decoder.sample(**out["action"])
+
+            sampledJointAction = sampledAction[:, :, :-1]
+            sampledGripperAction = sampledAction[:, :, -1]
+
+            sampledGripperConverted = torch.where(sampledGripperAction > 0, 1, -1)
+
+            gripperAccuracyRecognition = gripperAccuracyRecognition + \
+                torch.mean((actions_gt[:, :, -1] == sampledGripperConverted).float())
+            actionMseRecognition = actionMseRecognition + \
+                torch.nn.functional.mse_loss(sampledJointAction, actions_gt[:, :, :-1])
+            
+            exit(0)
+
+    # Required for CalvinBaseModel rollout
+    def load_lang_embeddings(self, embeddings_path):
+        embeddings = np.load(embeddings_path, allow_pickle=True).item()
+        # lang_embedding is a dictionary string:embedding(int)
+        self.lang_embeddings = {v["ann"][0]: v["emb"] for _, v in embeddings.items()}
 
     def configure_optimizers(self):
         optimizer = hydra.utils.instantiate(self.optimizer_config, params=self.parameters())
