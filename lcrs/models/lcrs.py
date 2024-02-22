@@ -58,41 +58,22 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
     def on_train_epoch_start(self) -> None:
         logger.info(f"Start training epoch {self.current_epoch}")
 
-    def logUpdate(self, encodingLoss, languageLoss, planLoss, actionLoss, gripperLoss) -> None:
+    def logUpdate(self, modality, losses):
+        totalLoss = 0
+        for k, v in losses.items():
+            v = v.cpu().detach()
+            self.log(
+                f"{modality}_{k}",
+                v,
+                on_step=False,
+                on_epoch=True,
+            )
+            if k.endswith("_loss"):
+                totalLoss += v
+
         self.log(
-            "train/encoding_loss",
-            encodingLoss,
-            on_step=False,
-            on_epoch=True,
-        )
-        self.log(
-            "train/language_loss",
-            languageLoss,
-            on_step=False,
-            on_epoch=True,
-        )
-        self.log(
-            "train/plan_loss",
-            planLoss,
-            on_step=False,
-            on_epoch=True,
-        )
-        self.log(
-            "train/action_loss",
-            actionLoss,
-            on_step=False,
-            on_epoch=True,
-        )
-        self.log(
-            "train/gripper_loss",
-            gripperLoss,
-            on_step=False,
-            on_epoch=True,
-        )
-        tot = encodingLoss + actionLoss + gripperLoss + planLoss + languageLoss
-        self.log(
-            "train/total_loss",
-            tot,
+            f"{modality}_total_loss",
+            totalLoss,
             on_step=False,
             on_epoch=True,
         )
@@ -188,11 +169,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             'robot_obs', 'rgb_obs', 'depth_obs', 'actions', 'state_info', 'use_for_aux_lang_loss', 'lang', 'idx'
 
         '''
-        encodingLoss = torch.tensor(0.0).to(self.device)
-        languageLoss = torch.tensor(0.0).to(self.device)
-        actionLoss = torch.tensor(0.0).to(self.device)
-        gripperLoss = torch.tensor(0.0).to(self.device)
-        planLoss = torch.tensor(0.0).to(self.device)
+        losses = dict()
 
         batchSize = 1
         auxSize = 1
@@ -215,50 +192,38 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             # LOSSES
 
-            encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(out["features"]["visual"], obs_gt)
+            losses["encoding_loss"] = self.perceptual_encoder.getLoss(out["features"]["visual"], obs_gt)
 
-            planLoss = planLoss + \
-                self.plan_proposal.getLoss(out["plan"]["proposal"]["state"], out["plan"]["recognition"]["state"])
+            losses["plan_loss"] = self.plan_proposal.getLoss(
+                out["plan"]["proposal"]["state"], out["plan"]["recognition"]["state"])
 
-            languageLoss = languageLoss + self.language_encoder.getLoss(
+            losses["language_loss"] = self.language_encoder.getLoss(
                 out["plan"]["recognition"]["state"].logit, out["features"]["language"], aux_lang)
 
             logistics_loss, gripper_act_loss = self.action_decoder.getLoss(
                 actions_gt, proprioceptive, out["action"]["pi"], out["action"]["mu"], out["action"]["sigma"], out["action"]["gripper"])
-            actionLoss = actionLoss + logistics_loss
-            gripperLoss = gripperLoss + gripper_act_loss
+            losses["action_loss"] = logistics_loss
+            losses["gripper_loss"] = gripper_act_loss
 
-        encodingLoss = encodingLoss * self.state_reconstruction_weight
-        encodingLoss /= batchSize
-        languageLoss = languageLoss * self.language_weight
-        languageLoss /= auxSize
-        planLoss = planLoss * self.plan_weight
-        planLoss /= batchSize
-        actionLoss = actionLoss * self.action_joints_weight
-        actionLoss /= batchSize
-        gripperLoss = gripperLoss * self.action_gripper_weight
-        gripperLoss /= batchSize
+        losses["encoding_loss"] = losses["encoding_loss"] * self.state_reconstruction_weight
+        losses["encoding_loss"] /= batchSize
+        losses["language_loss"] = losses["language_loss"] * self.language_weight
+        losses["language_loss"] /= auxSize
+        losses["plan_loss"] = losses["plan_loss"] * self.plan_weight
+        losses["plan_loss"] /= batchSize
+        losses["action_loss"] = losses["action_loss"] * self.action_joints_weight
+        losses["action_loss"] /= batchSize
+        losses["gripper_loss"] = losses["gripper_loss"] * self.action_gripper_weight
+        losses["gripper_loss"] /= batchSize
 
-        self.logUpdate(encodingLoss, languageLoss, planLoss, actionLoss, gripperLoss)
+        self.logUpdate("training", losses)
 
-        loss = encodingLoss + planLoss + actionLoss + gripperLoss + languageLoss
+        loss = sum(list(losses.values()))
         return loss
 
     def validation_step(self, batch: Dict[str, Dict], batch_idx: int) -> Dict[str, torch.Tensor]:
-        encodingLoss = torch.tensor(0.0).to(self.device)
-        languageLoss = torch.tensor(0.0).to(self.device)
-        actionLossProposal = torch.tensor(0.0).to(self.device)
-        actionLossRecognition = torch.tensor(0.0).to(self.device)
-        gripperLossProposal = torch.tensor(0.0).to(self.device)
-        gripperLossRecognition = torch.tensor(0.0).to(self.device)
 
-        planLoss = torch.tensor(0.0).to(self.device)
-
-        actionMseProposal = torch.tensor(0.0).to(self.device)
-        actionMseRecognition = torch.tensor(0.0).to(self.device)
-
-        gripperAccuracyProposal = torch.tensor(0.0).to(self.device)
-        gripperAccuracyRecognition = torch.tensor(0.0).to(self.device)
+        losses = dict()
 
         for modalityScope, dataset_batch in batch.items():
             if modalityScope != "lang":  # skip visual goal
@@ -278,20 +243,21 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             out = self(static, gripper, language, True, False)
 
             # plan independent metrics
-            encodingLoss = encodingLoss + self.perceptual_encoder.getLoss(out["features"]["visual"], obs_gt)
+            losses["encoding_loss"] = self.perceptual_encoder.getLoss(out["features"]["visual"], obs_gt)
 
-            planLoss = planLoss + \
-                self.plan_proposal.getLoss(out["plan"]["proposal"]["state"], out["plan"]["recognition"]["state"])
+            losses["plan_loss"] = self.plan_proposal.getLoss(
+                out["plan"]["proposal"]["state"], out["plan"]["recognition"]["state"])
 
-            languageLoss = languageLoss + self.language_encoder.getLoss(
+            losses["language_loss"] = self.language_encoder.getLoss(
                 out["plan"]["recognition"]["state"].logit, out["features"]["language"], aux_lang)
 
             # plan proposal metrics
 
             logistics_loss, gripper_act_loss = self.action_decoder.getLoss(
                 actions_gt, proprioceptive, out["action"]["pi"], out["action"]["mu"], out["action"]["sigma"], out["action"]["gripper"])
-            actionLossProposal = actionLossProposal + logistics_loss
-            gripperLossProposal = gripperLossProposal + gripper_act_loss
+
+            losses["action_proposal_loss"] = logistics_loss
+            losses["gripper_proposal_loss"] = gripper_act_loss
 
             sampledAction = self.action_decoder.sample(**out["action"])
 
@@ -300,10 +266,8 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             sampledGripperConverted = torch.where(sampledGripperAction > 0, 1, -1)
 
-            gripperAccuracyProposal = gripperAccuracyProposal + \
-                torch.mean((actions_gt[:, :, -1] == sampledGripperConverted).float())
-            actionMseProposal = actionMseProposal + \
-                torch.nn.functional.mse_loss(sampledJointAction, actions_gt[:, :, :-1])
+            losses["gripper_proposal_accuracy"] = torch.mean((actions_gt[:, :, -1] == sampledGripperConverted).float())
+            losses["action_proposal_mse"] = torch.nn.functional.mse_loss(sampledJointAction, actions_gt[:, :, :-1])
 
             # recognition feedforward (terribly unefficient but needed for keeping the code clean :) )
             out = self(static, gripper, language, True, True)
@@ -312,8 +276,8 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             logistics_loss, gripper_act_loss = self.action_decoder.getLoss(
                 actions_gt, proprioceptive, out["action"]["pi"], out["action"]["mu"], out["action"]["sigma"], out["action"]["gripper"])
-            actionLossRecognition = actionLossRecognition + logistics_loss
-            gripperLossRecognition = gripperLossRecognition + gripper_act_loss
+            losses["action_recognition_loss"] = logistics_loss
+            losses["gripper_recognition_loss"] = gripper_act_loss
 
             sampledAction = self.action_decoder.sample(**out["action"])
 
@@ -322,14 +286,18 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             sampledGripperConverted = torch.where(sampledGripperAction > 0, 1, -1)
 
-            gripperAccuracyRecognition = gripperAccuracyRecognition + \
-                torch.mean((actions_gt[:, :, -1] == sampledGripperConverted).float())
-            actionMseRecognition = actionMseRecognition + \
-                torch.nn.functional.mse_loss(sampledJointAction, actions_gt[:, :, :-1])
-            
-            exit(0)
+            losses["gripper_recognition_accuracy"] = torch.mean(
+                (actions_gt[:, :, -1] == sampledGripperConverted).float())
+            losses["action_recognition_mse"] = torch.nn.functional.mse_loss(sampledJointAction, actions_gt[:, :, :-1])
+
+        # TODO: normalize losses if needed
+
+        self.logUpdate("eval", losses)
+
+        exit(0)
 
     # Required for CalvinBaseModel rollout
+
     def load_lang_embeddings(self, embeddings_path):
         embeddings = np.load(embeddings_path, allow_pickle=True).item()
         # lang_embedding is a dictionary string:embedding(int)
