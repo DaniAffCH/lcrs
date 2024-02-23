@@ -2,5 +2,4 @@ defaults:
   - rollout: default
 #  - rollout_lh: default
   - checkpoint: all
-  - tsne_plot: default
   - shm_signal: default

@@ -190,7 +190,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             out = self(static, gripper, language, True, True)
 
-            # LOSSES
+            # losses
 
             losses["encoding_loss"] = self.perceptual_encoder.getLoss(out["features"]["visual"], obs_gt)
 
@@ -224,7 +224,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
     def validation_step(self, batch: Dict[str, Dict], batch_idx: int) -> Dict[str, torch.Tensor]:
 
         losses = dict()
-
+        out = None
         for modalityScope, dataset_batch in batch.items():
             if modalityScope != "lang":  # skip visual goal
                 continue
@@ -261,6 +261,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             sampledAction = self.action_decoder.sample(**out["action"])
 
+            # TODO: move common logic into a dedicated method
             sampledJointAction = sampledAction[:, :, :-1]
             sampledGripperAction = sampledAction[:, :, -1]
 
@@ -281,6 +282,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             sampledAction = self.action_decoder.sample(**out["action"])
 
+            # TODO: move common logic into a dedicated method
             sampledJointAction = sampledAction[:, :, :-1]
             sampledGripperAction = sampledAction[:, :, -1]
 
@@ -290,14 +292,30 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
                 (actions_gt[:, :, -1] == sampledGripperConverted).float())
             losses["action_recognition_mse"] = torch.nn.functional.mse_loss(sampledJointAction, actions_gt[:, :, :-1])
 
-        # TODO: normalize losses if needed
+        losses["encoding_loss"] = losses["encoding_loss"] * self.state_reconstruction_weight
+        losses["encoding_loss"] /= batchSize
+        losses["language_loss"] = losses["language_loss"] * self.language_weight
+        losses["language_loss"] /= auxSize
+        losses["plan_loss"] = losses["plan_loss"] * self.plan_weight
+        losses["plan_loss"] /= batchSize
+        losses["action_proposal_loss"] = losses["action_proposal_loss"] * self.action_joints_weight
+        losses["action_proposal_loss"] /= batchSize
+        losses["action_recognition_loss"] = losses["action_recognition_loss"] * self.action_joints_weight
+        losses["action_recognition_loss"] /= batchSize
+        losses["gripper_proposal_loss"] = losses["gripper_proposal_loss"] * self.action_gripper_weight
+        losses["gripper_proposal_loss"] /= batchSize
+        losses["gripper_recognition_loss"] = losses["gripper_recognition_loss"] * self.action_gripper_weight
+        losses["gripper_recognition_loss"] /= batchSize
 
         self.logUpdate("eval", losses)
 
-        exit(0)
+        return {
+            "sampled_plan_pp_lang": out["plan"]["proposal"]["sampled"],
+            "sampled_plan_pr_lang": out["plan"]["recognition"]["sampled"],
+            "idx_val": batch_idx
+        }
 
     # Required for CalvinBaseModel rollout
-
     def load_lang_embeddings(self, embeddings_path):
         embeddings = np.load(embeddings_path, allow_pickle=True).item()
         # lang_embedding is a dictionary string:embedding(int)
