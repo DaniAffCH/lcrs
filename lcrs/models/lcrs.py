@@ -63,7 +63,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         for k, v in losses.items():
             v = v.cpu().detach()
             self.log(
-                f"{modality}_{k}",
+                f"{modality}/{k}",
                 v,
                 on_step=False,
                 on_epoch=True,
