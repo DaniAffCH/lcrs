@@ -359,7 +359,8 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         """
         Do one step of inference with the model.
         """
-        if not self.rolloutGoal:
+        if self.rolloutGoal is None:
+
             language = torch.from_numpy(self.lang_embeddings[goal]).to(self.device).squeeze(0).float()
             self.rolloutGoal = self.language_encoder(language)
 
