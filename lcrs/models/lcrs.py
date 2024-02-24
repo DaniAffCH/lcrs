@@ -54,6 +54,12 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
         self.save_hyperparameters()
 
+        self.replan_freq = replan_freq
+
+        self.rolloutPlan = None
+        self.rolloutStep = 0
+        self.rolloutGoal = None
+
     @rank_zero_only
     def on_train_epoch_start(self) -> None:
         logger.info(f"Start training epoch {self.current_epoch}")
@@ -84,7 +90,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
                 totalLoss += v
 
         self.log(
-            f"{modality}_total_loss",
+            f"{modality}/total_loss",
             totalLoss,
             on_step=False,
             on_epoch=True,
@@ -233,6 +239,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         loss = sum(list(losses.values()))
         return loss
 
+    @torch.no_grad()
     def validation_step(self, batch: Dict[str, Dict], batch_idx: int) -> Dict[str, torch.Tensor]:
 
         losses = dict()
@@ -342,8 +349,39 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             "lr_scheduler": {"scheduler": scheduler, "interval": "step", "frequency": 1},
         }
 
+    def reset(self):
+        self.rolloutPlan = None
+        self.rolloutStep = 0
+        self.rolloutGoal = None
+
+    @torch.no_grad()
     def step(self, obs, goal):
         """
         Do one step of inference with the model.
         """
-        pass
+        if not self.rolloutGoal:
+            language = torch.from_numpy(self.lang_embeddings[goal]).to(self.device).squeeze(0).float()
+            self.rolloutGoal = self.language_encoder(language)
+
+        static = obs["rgb_obs"]["rgb_static"]
+        gripper = obs["rgb_obs"]["rgb_gripper"]
+
+        bs, ss, cs, hs, ws = static.shape
+        bg, sg, cg, hg, wg = gripper.shape
+
+        visualFeatures = self.perceptual_encoder(static.reshape(-1, cs, hs, ws), gripper.reshape(-1, cg, hg, wg))
+        visualFeatures = visualFeatures.reshape(bs, ss, -1)
+
+        if self.rolloutStep % self.replan_freq == 0:
+
+            planProposalState = self.plan_proposal(visual=visualFeatures[:, 0], language=self.rolloutGoal)
+            planProposalDist = self.distribution.get_dist(planProposalState)
+            self.rolloutPlan = torch.flatten(planProposalDist.rsample(), start_dim=-2, end_dim=-1)
+
+        pi, mu, sigma, gripperAct = self.action_decoder(self.rolloutPlan, visualFeatures, self.rolloutGoal)
+
+        sampledAction = self.action_decoder.sample(pi, mu, sigma, gripperAct)
+
+        self.rolloutStep += 1
+
+        return sampledAction
