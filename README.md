@@ -29,6 +29,24 @@ pip install cmake==3.18.4
 ```
 Don't worry about the errors like `ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts. [...]`
 
+# Hack for language-only rollout
+Modify the rollout within calvin
+```bash
+calvin/calvin_models/calvin_agent/rollout/rollout.py
+```
+by adding a `continue` in the else block of line 308.
+
+```python
+   else:
+      # goal image is last step of the episode
+      continue
+      goal = {
+          "rgb_obs": {k: v[i, -1].unsqueeze(0).unsqueeze(0) for k, v in rgb_obs.items()},  # type: ignore
+          "depth_obs": {k: v[i, -1].unsqueeze(0).unsqueeze(0) for k, v in depth_obs.items()},  # type: ignore
+          "robot_obs": state_obs[i, -1].unsqueeze(0).unsqueeze(0),
+      }
+```
+
 # Training
 ```bash
 python lcrs/training.py datamodule.root_data_dir=/path/to/dataset
