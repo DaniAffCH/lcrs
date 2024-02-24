@@ -58,6 +58,18 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
     def on_train_epoch_start(self) -> None:
         logger.info(f"Start training epoch {self.current_epoch}")
 
+    @rank_zero_only
+    def on_train_epoch_end(self) -> None:
+        logger.info(f"Finished training epoch {self.current_epoch}")
+
+    @rank_zero_only
+    def on_validation_epoch_start(self) -> None:
+        logger.info(f"Start validation epoch {self.current_epoch}")
+
+    @rank_zero_only
+    def on_validation_epoch_end(self) -> None:
+        logger.info(f"Finished validation epoch {self.current_epoch}")
+
     def logUpdate(self, modality, losses):
         totalLoss = 0
         for k, v in losses.items():
