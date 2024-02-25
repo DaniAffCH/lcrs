@@ -72,6 +72,7 @@ class ActionDecoder(nn.Module):
 
         # =============
 
+    # Provides parameters for action distribution 
     def forward(self, plan: torch.Tensor, visual: torch.Tensor, language: torch.Tensor) -> torch.Tensor:
         batchSize = visual.shape[0]
         sequenceLength = visual.shape[1]
@@ -108,13 +109,39 @@ class ActionDecoder(nn.Module):
     ) -> torch.Tensor:
 
         actions_tcp = world_to_tcp_frame(gtActions, proprioceptive)
-        logistics_loss = self._logistic_loss(pi, sigma, mu, actions_tcp[:, :, :-1])
+        # logistics_loss = self._logistic_loss(pi, sigma, mu, actions_tcp[:, :, :-1])
+        kl_loss = self._kl_loss(pi, sigma, mu, actions_tcp[:, :, :-1])
         gripper_gt = actions_tcp[:, :, -1].clone()
         gripper_gt[gripper_gt == -1] = 0
         gripper_act_loss = F.cross_entropy(gripper.view(-1, 2), gripper_gt.view(-1).long())
 
-        return logistics_loss, gripper_act_loss
+        # return logistics_loss, gripper_act_loss
+        return kl_loss, gripper_act_loss
 
+    def _kl_loss(
+        self,
+        logit_probs: torch.Tensor,
+        log_scales: torch.Tensor,
+        means: torch.Tensor,
+        actions: torch.Tensor,
+    ) -> torch.Tensor:
+        # Appropriate scale
+        log_scales = torch.clamp(log_scales, min=self.log_scale_min)
+        # Broadcast actions (B, A, N_DIST)
+        actions = actions.unsqueeze(-1) * torch.ones(1, 1, self.mixtures, device=self.device)
+
+        # todo Calculate distributions for KL divergence
+        centered_actions = actions - means
+        inv_stdv = torch.exp(-log_scales)
+        distributions = torch.distributions.Logistic(means, inv_stdv)
+
+        # todo Target distribution (uniform!)
+        target_dist = torch.distributions.Uniform(self.action_min_bound, self.action_max_bound)
+
+        kl_divergence = torch.distributions.kl_divergence(distributions, target_dist)
+        kl_loss = kl_divergence.sum(dim=-1).mean() # Combine KL divergences across mixtures
+
+        return kl_loss
     # FROM HULC
     def _logistic_loss(
         self,
@@ -164,6 +191,7 @@ class ActionDecoder(nn.Module):
         return loss
 
     # FROM HULC
+    # Sampling from logistic distribution
     def sample(self, pi: torch.Tensor, mu: torch.Tensor, sigma: torch.Tensor, gripper: torch.Tensor) -> torch.Tensor:
 
         r1, r2 = 1e-5, 1.0 - 1e-5
@@ -180,6 +208,23 @@ class ActionDecoder(nn.Module):
         u = (r1 - r2) * torch.rand(mu.shape, device=mu.device) + r2
         actions = mu + scales * (torch.log(u) - torch.log(1.0 - u))
 
+        gripper_cmd = self.gripper_bounds[gripper.argmax(dim=-1)]
+        full_action = torch.cat([actions, gripper_cmd.unsqueeze(-1)], 2)
+
+        return full_action
+    
+    # Sampling from Gaussian mixture model
+    def sample_gmm(self, pi: torch.Tensor, mu: torch.Tensor, sigma: torch.Tensor, gripper: torch.Tensor) -> torch.Tensor:
+        # Sample mixture component
+        component_idx = torch.multinomial(pi, 1).squeeze(-1)  # Sample from categorical distribution
+        dist = torch.zeros_like(pi).scatter(-1, component_idx.unsqueeze(-1), 1.0)  # One-hot encoded
+
+        # Sample action from chosen component
+        mu = (dist * mu).sum(dim=-1)  # Weighted sum of means
+        sigma = (dist * sigma).sum(dim=-1)  # Weighted sum of standard deviations
+        actions = mu + sigma * torch.randn(mu.shape, device=mu.device)  # Sample from Gaussian
+
+        # Combine with gripper control
         gripper_cmd = self.gripper_bounds[gripper.argmax(dim=-1)]
         full_action = torch.cat([actions, gripper_cmd.unsqueeze(-1)], 2)
 
