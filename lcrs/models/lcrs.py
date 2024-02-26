@@ -280,44 +280,25 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
                     out["plan"]["recognition"]["state"].logit, out["features"]["goal"], aux_lang)
 
             # plan proposal metrics
-
             logistics_loss, gripper_act_loss = self.action_decoder.getLoss(
                 actions_gt, proprioceptive, out["action"]["pi"], out["action"]["mu"], out["action"]["sigma"], out["action"]["gripper"])
 
             losses["action_proposal_loss"] = logistics_loss
             losses["gripper_proposal_loss"] = gripper_act_loss
-
-            sampledAction = self.action_decoder.sample(**out["action"])
-
-            # TODO: move common logic into a dedicated method
-            sampledJointAction = sampledAction[:, :, :-1]
-            sampledGripperAction = sampledAction[:, :, -1]
-
-            sampledGripperConverted = torch.where(sampledGripperAction > 0, 1, -1)
-
+            sampledJointAction, sampledGripperConverted = self.split_sampled_actions(sampleAction=self.action_decoder.sample(**out["action"]))
             losses["gripper_proposal_accuracy"] = torch.mean((actions_gt[:, :, -1] == sampledGripperConverted).float())
             losses["action_proposal_mse"] = torch.nn.functional.mse_loss(sampledJointAction, actions_gt[:, :, :-1])
-
+           
             # recognition feedforward (terribly unefficient but needed for keeping the code clean :) )
             out = self(static, gripper, language, True, True)
 
             # plan recognition metrics
-
             logistics_loss, gripper_act_loss = self.action_decoder.getLoss(
                 actions_gt, proprioceptive, out["action"]["pi"], out["action"]["mu"], out["action"]["sigma"], out["action"]["gripper"])
             losses["action_recognition_loss"] = logistics_loss
             losses["gripper_recognition_loss"] = gripper_act_loss
-
-            sampledAction = self.action_decoder.sample(**out["action"])
-
-            # TODO: move common logic into a dedicated method
-            sampledJointAction = sampledAction[:, :, :-1]
-            sampledGripperAction = sampledAction[:, :, -1]
-
-            sampledGripperConverted = torch.where(sampledGripperAction > 0, 1, -1)
-
-            losses["gripper_recognition_accuracy"] = torch.mean(
-                (actions_gt[:, :, -1] == sampledGripperConverted).float())
+            sampledJointAction, sampledGripperConverted = self.split_sampled_actions(sampleAction=self.action_decoder.sample(**out["action"]))
+            losses["gripper_recognition_accuracy"] = torch.mean((actions_gt[:, :, -1] == sampledGripperConverted).float())
             losses["action_recognition_mse"] = torch.nn.functional.mse_loss(sampledJointAction, actions_gt[:, :, :-1])
 
         losses["encoding_loss"] = losses["encoding_loss"] * self.state_reconstruction_weight
@@ -343,6 +324,12 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             "sampled_plan_pr_lang": out["plan"]["recognition"]["sampled"],
             "idx_val": batch_idx
         }
+
+    def split_sampled_actions(sampledAction):
+        sampledJointAction = sampledAction[:, :, :-1]
+        sampledGripperAction = sampledAction[:, :, -1]
+        sampledGripperConverted = torch.where(sampledGripperAction > 0, 1, -1)
+        return sampledJointAction, sampledGripperConverted
 
     # Required for CalvinBaseModel rollout
     def load_lang_embeddings(self, embeddings_path):
