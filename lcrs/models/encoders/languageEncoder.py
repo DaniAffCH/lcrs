@@ -68,5 +68,29 @@ class LanguageEncoder(nn.Module):
         return loss
 
     def getLossAlternative(self, planFeatures: torch.Tensor, languageFeatures: torch.Tensor, auxLang) -> torch.Tensor:
-        # Implement an alternative contrastive loss (keep it simple!)
-        pass
+        planFeaturesEmb = self.planProjection(planFeatures[auxLang])
+        languageFeaturesEmb = self.languageProjection(languageFeatures[auxLang])
+        # normalize embeddings?
+        planFeaturesEmb = planFeaturesEmb / planFeaturesEmb.norm(dim=-1, keepdim=True)
+        languageFeaturesEmb = languageFeaturesEmb / languageFeaturesEmb.norm(dim=-1, keepdim=True) 
+
+        # ?
+        t = self.temperature.exp()
+        logits_per_image = t * planFeaturesEmb @ languageFeaturesEmb.t()
+        logits_per_text = logits_per_image.t()
+
+        # get labels
+        labels = torch.arange(logits_per_image.shape[0], device=languageFeaturesEmb.device)
+
+        # Calculate the contrastive loss as defined by Hadsell et al. in "Dimensionality Reduction by Learning an Invariant Mapping"
+        margin = "?"
+        y = labels #?
+        x1 = planFeatures
+        x2 = languageFeatures
+        
+        # language should be as similar as possible to the recognized plan
+        # should be as distant as possible as other plans
+        
+        d_w = torch.nn.functional.pairwise_distance(w(x1), w(x2))
+        loss = (1 - y) * 0.5 * d_w**2 + y * 0.5 * torch.nn.functional.relu(margin - d_w)**2
+        
