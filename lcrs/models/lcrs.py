@@ -285,7 +285,8 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             losses["action_proposal_loss"] = logistics_loss
             losses["gripper_proposal_loss"] = gripper_act_loss
-            sampledJointAction, sampledGripperConverted = self.split_sampled_actions(sampleAction=self.action_decoder.sample(**out["action"]))
+            sampledJointAction, sampledGripperConverted = self.split_sampled_actions(
+                sampledAction=self.action_decoder.sample(**out["action"]))
             losses["gripper_proposal_accuracy"] = torch.mean((actions_gt[:, :, -1] == sampledGripperConverted).float())
             losses["action_proposal_mse"] = torch.nn.functional.mse_loss(sampledJointAction, actions_gt[:, :, :-1])
            
@@ -297,7 +298,8 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
                 actions_gt, proprioceptive, out["action"]["pi"], out["action"]["mu"], out["action"]["sigma"], out["action"]["gripper"])
             losses["action_recognition_loss"] = logistics_loss
             losses["gripper_recognition_loss"] = gripper_act_loss
-            sampledJointAction, sampledGripperConverted = self.split_sampled_actions(sampleAction=self.action_decoder.sample(**out["action"]))
+            sampledJointAction, sampledGripperConverted = self.split_sampled_actions(
+                sampledAction=self.action_decoder.sample(**out["action"]))
             losses["gripper_recognition_accuracy"] = torch.mean((actions_gt[:, :, -1] == sampledGripperConverted).float())
             losses["action_recognition_mse"] = torch.nn.functional.mse_loss(sampledJointAction, actions_gt[:, :, :-1])
 
