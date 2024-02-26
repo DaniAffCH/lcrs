@@ -315,7 +315,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             "idx_val": batch_idx
         }
 
-    def split_sampled_actionsd(sampledAction):
+    def split_sampled_actions(sampledAction):
         sampledJointAction = sampledAction[:, :, :-1]
         sampledGripperAction = sampledAction[:, :, -1]
         sampledGripperConverted = torch.where(sampledGripperAction > 0, 1, -1)
