@@ -1,0 +1,5 @@
+_target_: lcrs.models.encoders.visualGoalEncoder.VisualGoalEncoder
+in_size: ${model.perceptual_encoder.visual_features}
+hidden_size: 2048
+out_size: ${model.language_goal.out_size}
+depth: 2
