@@ -4,6 +4,7 @@ defaults:
   - plan_recognition: lcrs_plan_recognition
   - distribution:  lcrs_distribution
   - language_goal: lcrs_language_encoder
+  - visual_goal: lcrs_visual_encoder
   - action_decoder: lcrs_action_decoder
   - optimizer: adam
   - lr_scheduler: constant

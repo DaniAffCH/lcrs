@@ -21,6 +21,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         plan_proposal: DictConfig,
         plan_recognition: DictConfig,
         language_goal: DictConfig,
+        visual_goal: DictConfig,
         action_decoder: DictConfig,
         state_reconstruction_weight: float,
         language_weight: float,
@@ -38,7 +39,8 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         super(Lcrs, self).__init__()
         self.perceptual_encoder = hydra.utils.instantiate(perceptual_encoder)
         self.distribution = hydra.utils.instantiate(distribution)
-        self.language_encoder = hydra.utils.instantiate(language_goal, dist=self.distribution)
+        self.language_goal_encoder = hydra.utils.instantiate(language_goal, dist=self.distribution)
+        self.visual_goal_encoder = hydra.utils.instantiate(visual_goal)
         self.plan_proposal = hydra.utils.instantiate(plan_proposal, dist=self.distribution)
         self.plan_recognition = hydra.utils.instantiate(plan_recognition, dist=self.distribution)
         self.action_decoder = hydra.utils.instantiate(action_decoder, dist=self.distribution)
@@ -96,7 +98,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             on_epoch=True,
         )
 
-    def forward(self, static, gripper, language, recognizePlan=False, useRecognition=False):
+    def forward(self, static, gripper, language, isVisualGoal, recognizePlan=False, useRecognition=False):
         '''
         Input:
         recognizePlan: use the recognition network to sample a plan
@@ -137,11 +139,14 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         visualFeatures = visualFeatures.reshape(bs, ss, -1)
 
         # LANGUAGE EMBEDDING
-        languageFeatures = self.language_encoder(language)
+        if isVisualGoal:
+            goalFeatures = self.visual_goal_encoder(visualFeatures[:, -1])
+        else:
+            goalFeatures = self.language_goal_encoder(language)
 
         # PLAN PROPOSAL
         # TODO: check if the dimensions match both in the validation and in plain inference
-        planProposalState = self.plan_proposal(visual=visualFeatures[:, 0], language=languageFeatures)
+        planProposalState = self.plan_proposal(visual=visualFeatures[:, 0], language=goalFeatures)
 
         # PLAN PROPOSAL SAMPLING
         planProposalDist = self.distribution.get_dist(planProposalState)
@@ -158,11 +163,11 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         plan = sampledRecognitionPlan if useRecognition else sampledProposalPlan
 
         # ACTION GENERATION
-        pi, mu, sigma, gripperAct = self.action_decoder(plan, visualFeatures, languageFeatures)
+        pi, mu, sigma, gripperAct = self.action_decoder(plan, visualFeatures, goalFeatures)
 
         return {"features":
                 {"visual": visualFeatures,
-                 "language": languageFeatures},
+                 "goal": goalFeatures},
                 "plan":
                     {"proposal":
                         {"state": planProposalState,
@@ -193,20 +198,21 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         auxSize = 1
 
         for modalityScope, dataset_batch in batch.items():
-            if modalityScope != "lang":  # skip visual goal
-                continue
+            isVisualBatch = modalityScope == "vis"
             static = dataset_batch["rgb_obs"]["rgb_static"]
             gripper = dataset_batch["rgb_obs"]["rgb_gripper"]
             language = dataset_batch["lang"]
             obs_gt = dataset_batch["robot_obs"]
             proprioceptive = dataset_batch["state_info"]["robot_obs"]
             actions_gt = dataset_batch["actions"]
-            aux_lang = dataset_batch["use_for_aux_lang_loss"]
+
+            if not isVisualBatch:
+                aux_lang = dataset_batch["use_for_aux_lang_loss"]
+                auxSize = max(1.0, torch.sum(dataset_batch["use_for_aux_lang_loss"]).detach())
 
             batchSize = dataset_batch["actions"].shape[0]
-            auxSize = max(1.0, torch.sum(dataset_batch["use_for_aux_lang_loss"]).detach())
 
-            out = self(static, gripper, language, True, True)
+            out = self(static, gripper, language, isVisualBatch, True, True)
 
             # losses
 
@@ -214,9 +220,9 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             losses["plan_loss"] = self.plan_proposal.getLoss(
                 out["plan"]["proposal"]["state"], out["plan"]["recognition"]["state"])
-
-            losses["language_loss"] = self.language_encoder.getLoss(
-                out["plan"]["recognition"]["state"].logit, out["features"]["language"], aux_lang)
+            if not isVisualBatch:
+                losses["language_loss"] = self.language_goal_encoder.getLoss(
+                    out["plan"]["recognition"]["state"].logit, out["features"]["goal"], aux_lang)
 
             logistics_loss, gripper_act_loss = self.action_decoder.getLoss(
                 actions_gt, proprioceptive, out["action"]["pi"], out["action"]["mu"], out["action"]["sigma"], out["action"]["gripper"])
@@ -225,8 +231,9 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
         losses["encoding_loss"] = losses["encoding_loss"] * self.state_reconstruction_weight
         losses["encoding_loss"] /= batchSize
-        losses["language_loss"] = losses["language_loss"] * self.language_weight
-        losses["language_loss"] /= auxSize
+        if not isVisualBatch:
+            losses["language_loss"] = losses["language_loss"] * self.language_weight
+            losses["language_loss"] /= auxSize
         losses["plan_loss"] = losses["plan_loss"] * self.plan_weight
         losses["plan_loss"] /= batchSize
         losses["action_loss"] = losses["action_loss"] * self.action_joints_weight
@@ -245,21 +252,22 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         losses = dict()
         out = None
         for modalityScope, dataset_batch in batch.items():
-            if modalityScope != "lang":  # skip visual goal
-                continue
+            isVisualBatch = modalityScope == "vis"
             static = dataset_batch["rgb_obs"]["rgb_static"]
             gripper = dataset_batch["rgb_obs"]["rgb_gripper"]
             language = dataset_batch["lang"]
             obs_gt = dataset_batch["robot_obs"]
             proprioceptive = dataset_batch["state_info"]["robot_obs"]
             actions_gt = dataset_batch["actions"]
-            aux_lang = dataset_batch["use_for_aux_lang_loss"]
+
+            if not isVisualBatch:
+                aux_lang = dataset_batch["use_for_aux_lang_loss"]
+                auxSize = max(1.0, torch.sum(dataset_batch["use_for_aux_lang_loss"]).detach())
 
             batchSize = dataset_batch["actions"].shape[0]
-            auxSize = max(1.0, torch.sum(dataset_batch["use_for_aux_lang_loss"]).detach())
 
             # proposal feedforward
-            out = self(static, gripper, language, True, False)
+            out = self(static, gripper, language, isVisualBatch, True, False)
 
             # plan independent metrics
             losses["encoding_loss"] = self.perceptual_encoder.getLoss(out["features"]["visual"], obs_gt)
@@ -267,8 +275,9 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             losses["plan_loss"] = self.plan_proposal.getLoss(
                 out["plan"]["proposal"]["state"], out["plan"]["recognition"]["state"])
 
-            losses["language_loss"] = self.language_encoder.getLoss(
-                out["plan"]["recognition"]["state"].logit, out["features"]["language"], aux_lang)
+            if not isVisualBatch:
+                losses["language_loss"] = self.language_goal_encoder.getLoss(
+                    out["plan"]["recognition"]["state"].logit, out["features"]["goal"], aux_lang)
 
             # plan proposal metrics
 
@@ -313,8 +322,9 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
         losses["encoding_loss"] = losses["encoding_loss"] * self.state_reconstruction_weight
         losses["encoding_loss"] /= batchSize
-        losses["language_loss"] = losses["language_loss"] * self.language_weight
-        losses["language_loss"] /= auxSize
+        if not isVisualBatch:
+            losses["language_loss"] = losses["language_loss"] * self.language_weight
+            losses["language_loss"] /= auxSize
         losses["plan_loss"] = losses["plan_loss"] * self.plan_weight
         losses["plan_loss"] /= batchSize
         losses["action_proposal_loss"] = losses["action_proposal_loss"] * self.action_joints_weight
@@ -359,10 +369,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         """
         Do one step of inference with the model.
         """
-        if self.rolloutGoal is None:
-
-            language = torch.from_numpy(self.lang_embeddings[goal]).to(self.device).squeeze(0).float()
-            self.rolloutGoal = self.language_encoder(language)
+        isVisualGoal = not isinstance(goal, str)
 
         static = obs["rgb_obs"]["rgb_static"]
         gripper = obs["rgb_obs"]["rgb_gripper"]
@@ -372,6 +379,14 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
         visualFeatures = self.perceptual_encoder(static.reshape(-1, cs, hs, ws), gripper.reshape(-1, cg, hg, wg))
         visualFeatures = visualFeatures.reshape(bs, ss, -1)
+
+        if self.rolloutGoal is None:
+            if isVisualGoal:
+                # TODO: I'm not quite sure if it's only visualFeatures[-1]
+                self.rolloutGoal = self.visual_goal_encoder(visualFeatures[:, -1])
+            else:
+                language = torch.from_numpy(self.lang_embeddings[goal]).to(self.device).squeeze(0).float()
+                self.rolloutGoal = self.language_goal_encoder(language)
 
         if self.rolloutStep % self.replan_freq == 0:
 
