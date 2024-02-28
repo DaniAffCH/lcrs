@@ -15,6 +15,8 @@ This repository is based on Calvin framework, use the flag `--recursive` to down
    conda env create -f environment.yml
    source activate lcrs_venv
    sh install.sh
+   # Optionally setup jupyternotebook kernel
+   python -m ipykernel install --user --name=lcrs_venv
    ```
 
 4. **Configure W&B logger**

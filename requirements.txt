@@ -22,3 +22,4 @@ moviepy
 tqdm
 termcolor
 wandb
+ipykernel
