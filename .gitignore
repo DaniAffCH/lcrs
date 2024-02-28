@@ -396,3 +396,10 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Hulc & Calvin
+calvin_debug_dataset
+hulc
+
+# Runs
+runs
