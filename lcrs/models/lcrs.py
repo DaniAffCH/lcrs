@@ -145,7 +145,6 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             goalFeatures = self.language_goal_encoder(language)
 
         # PLAN PROPOSAL
-        # TODO: check if the dimensions match both in the validation and in plain inference
         planProposalState = self.plan_proposal(visual=visualFeatures[:, 0], language=goalFeatures)
 
         # PLAN PROPOSAL SAMPLING
@@ -163,7 +162,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
         plan = sampledRecognitionPlan if useRecognition else sampledProposalPlan
 
         # ACTION GENERATION
-        pi, mu, sigma, gripperAct = self.action_decoder(plan, visualFeatures, goalFeatures)
+        pi, mu, sigma, gripperAct, _ = self.action_decoder(plan, visualFeatures, goalFeatures)
 
         return {"features":
                 {"visual": visualFeatures,
@@ -220,9 +219,6 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
             losses["plan_loss"] = self.plan_proposal.getLoss(
                 out["plan"]["proposal"]["state"], out["plan"]["recognition"]["state"])
-            if not isVisualBatch:
-                losses["language_loss"] = self.language_goal_encoder.getLoss(
-                    out["plan"]["recognition"]["state"].logit, out["features"]["goal"], aux_lang)
 
             logistics_loss, gripper_act_loss = self.action_decoder.getLoss(
                 actions_gt, proprioceptive, out["action"]["pi"], out["action"]["mu"], out["action"]["sigma"], out["action"]["gripper"])
@@ -231,13 +227,12 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
         losses["encoding_loss"] = losses["encoding_loss"] * self.state_reconstruction_weight
         losses["encoding_loss"] /= batchSize
-        if not isVisualBatch:
-            losses["language_loss"] = losses["language_loss"] * self.language_weight
-            losses["language_loss"] /= auxSize
+
         losses["plan_loss"] = losses["plan_loss"] * self.plan_weight
         losses["plan_loss"] /= batchSize
         losses["action_loss"] = losses["action_loss"] * self.action_joints_weight
         losses["action_loss"] /= batchSize
+
         losses["gripper_loss"] = losses["gripper_loss"] * self.action_gripper_weight
         losses["gripper_loss"] /= batchSize
 
@@ -275,10 +270,6 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             losses["plan_loss"] = self.plan_proposal.getLoss(
                 out["plan"]["proposal"]["state"], out["plan"]["recognition"]["state"])
 
-            if not isVisualBatch:
-                losses["language_loss"] = self.language_goal_encoder.getLoss(
-                    out["plan"]["recognition"]["state"].logit, out["features"]["goal"], aux_lang)
-
             # plan proposal metrics
             logistics_loss, gripper_act_loss = self.action_decoder.getLoss(
                 actions_gt, proprioceptive, out["action"]["pi"], out["action"]["mu"], out["action"]["sigma"], out["action"]["gripper"])
@@ -289,7 +280,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
                 sampledAction=self.action_decoder.sample(**out["action"]))
             losses["gripper_proposal_accuracy"] = torch.mean((actions_gt[:, :, -1] == sampledGripperConverted).float())
             losses["action_proposal_mse"] = torch.nn.functional.mse_loss(sampledJointAction, actions_gt[:, :, :-1])
-           
+
             # recognition feedforward (terribly unefficient but needed for keeping the code clean :) )
             out = self(static, gripper, language, True, True)
 
@@ -306,9 +297,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
 
         losses["encoding_loss"] = losses["encoding_loss"] * self.state_reconstruction_weight
         losses["encoding_loss"] /= batchSize
-        if not isVisualBatch:
-            losses["language_loss"] = losses["language_loss"] * self.language_weight
-            losses["language_loss"] /= auxSize
+
         losses["plan_loss"] = losses["plan_loss"] * self.plan_weight
         losses["plan_loss"] /= batchSize
         losses["action_proposal_loss"] = losses["action_proposal_loss"] * self.action_joints_weight
@@ -328,7 +317,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             "idx_val": batch_idx
         }
 
-    def split_sampled_actions(self,  sampledAction):
+    def split_sampled_actions(self, sampledAction):
         sampledJointAction = sampledAction[:, :, :-1]
         sampledGripperAction = sampledAction[:, :, -1]
         sampledGripperConverted = torch.where(sampledGripperAction > 0, 1, -1)

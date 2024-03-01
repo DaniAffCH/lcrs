@@ -6,7 +6,6 @@ hidden_size: 2048
 action_space_size: ${datamodule.action_space}
 mixtures: 16
 defaults:
- - decoder: default 
  - piDecoder: default
  - muDecoder: default
  - sigmaDecoder: default

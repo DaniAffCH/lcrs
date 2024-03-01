@@ -40,10 +40,6 @@ class PlanProposal(nn.Module):
         planProposalDist = self.dist.get_dist(planProposalState)
         planRecognitionDist = self.dist.get_dist(planRecognitionState)
 
-        planProposalDistDetached = self.dist.get_dist(self.dist.detach_state(planProposalState))
-        planRecognitionDistDetached = self.dist.get_dist(self.dist.detach_state(planRecognitionState))
+        kl_loss = D.kl_divergence(planRecognitionDist, planProposalDist).mean()
 
-        kl_lhs = D.kl_divergence(planRecognitionDistDetached, planProposalDist).mean()
-        kl_rhs = D.kl_divergence(planRecognitionDist, planProposalDistDetached).mean()
-
-        return 0.8 * kl_lhs + 0.2 * kl_rhs  # The kl divergence is not symmetric!
+        return kl_loss  # The kl divergence is not symmetric!

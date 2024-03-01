@@ -1,3 +1,9 @@
+from omegaconf import ListConfig, OmegaConf
+from calvin_agent.models.decoders.action_decoder import ActionDecoder
+import calvin_agent
+from typing import List, Optional, Tuple, Union
+from pathlib import Path
+import logging
 from typing import Dict, Optional
 
 import numpy as np
@@ -20,7 +26,6 @@ def log_sum_exp(x):
 
 class ActionDecoder(nn.Module):
     def __init__(self,
-                 decoder: DictConfig,
                  piDecoder: DictConfig,
                  muDecoder: DictConfig,
                  sigmaDecoder: DictConfig,
@@ -40,7 +45,18 @@ class ActionDecoder(nn.Module):
         self.mixtures = mixtures
         self.action_space_size = action_space_size - 1  # remove the gripper
         out_features_gmm = self.action_space_size * mixtures
-        self.fcDecoder = hydra.utils.instantiate(decoder, in_size=in_features)
+        # self.fcDecoder = hydra.utils.instantiate(decoder, in_size=in_features)
+
+        self.rnn = nn.RNN(
+            input_size=in_features,
+            hidden_size=hidden_size,
+            num_layers=3,
+            nonlinearity="relu",
+            bidirectional=False,
+            batch_first=True,
+            dropout=0.1,
+        )
+
         self.piDecoder = hydra.utils.instantiate(piDecoder, out_size=out_features_gmm)
         self.muDecoder = hydra.utils.instantiate(muDecoder, out_size=out_features_gmm)
         self.sigmaDecoder = hydra.utils.instantiate(sigmaDecoder, out_size=out_features_gmm)
@@ -72,7 +88,7 @@ class ActionDecoder(nn.Module):
 
         # =============
 
-    def forward(self, plan: torch.Tensor, visual: torch.Tensor, language: torch.Tensor) -> torch.Tensor:
+    def forward(self, plan: torch.Tensor, visual: torch.Tensor, language: torch.Tensor, h_0: Optional[torch.Tensor] = None) -> torch.Tensor:
         batchSize = visual.shape[0]
         sequenceLength = visual.shape[1]
         plan = plan.unsqueeze(1).expand(-1, sequenceLength, -1)
@@ -80,7 +96,7 @@ class ActionDecoder(nn.Module):
         x = torch.cat([plan, visual, language], dim=-1)
 
         x = torch.cat([plan, visual, language], dim=-1)
-        x = self.fcDecoder(x)
+        x, h_n = self.rnn(x, h_0)
 
         # sum( pi * N(mu, sigma) )
 
@@ -94,7 +110,7 @@ class ActionDecoder(nn.Module):
         mu = mu.view(batchSize, sequenceLength, self.action_space_size, self.mixtures)
         sigma = sigma.view(batchSize, sequenceLength, self.action_space_size, self.mixtures)
 
-        return pi, mu, sigma, gripper
+        return pi, mu, sigma, gripper, h_n
 
     # FROM HULC
     def getLoss(
