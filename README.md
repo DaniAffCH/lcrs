@@ -25,12 +25,32 @@ This repository is based on Calvin framework, use the flag `--recursive` to down
 You can download the dataset with the scripts provided in [dataset](./dataset/) directory.
 
 ## Troubleshooting
+
+If you get errors during conda environment creation regarding pyhash/setuptools, activate the environment anyway and then install setuptools manually:
+```bash
+pip install setuptools==57.4.0
+```
+
 If you encounter errors during build wheels for MulticoreTSNE, try downgrading the cmake version to e.g. 3.18.4: 
 ```bash
 pip install cmake==3.18.4
 ```
+
 Don't worry about the errors like `ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts. [...]`
+
+# Dataset download
+
+You can download the calvin datasets as follows:
+
+```bash
+cd $LCRS_ROOT/dataset
+sh download_data.sh D | ABC | ABCD | debug
+```
+
+Alternativley, you the dataset gets automatically downloaded when using the example [training.py](./training.ipynb).
 
 # Training
 ```bash
 python lcrs/training.py datamodule.root_data_dir=/path/to/dataset
+```
+or via the [training.py](./training.ipynb) (remember to set the correct conda kernel before execution).
