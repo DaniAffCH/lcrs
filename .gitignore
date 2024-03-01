@@ -399,7 +399,9 @@ FodyWeavers.xsd
 
 # Hulc & Calvin
 calvin_debug_dataset
+calvin
 hulc
 
 # Runs
 runs
+.ipynb_checkpoints
