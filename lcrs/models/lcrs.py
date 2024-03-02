@@ -373,7 +373,7 @@ class Lcrs(pl.LightningModule, CalvinBaseModel):
             planProposalDist = self.distribution.get_dist(planProposalState)
             self.rolloutPlan = torch.flatten(planProposalDist.rsample(), start_dim=-2, end_dim=-1)
 
-        pi, mu, sigma, gripperAct = self.action_decoder(self.rolloutPlan, visualFeatures, self.rolloutGoal)
+        pi, mu, sigma, gripperAct, _ = self.action_decoder(self.rolloutPlan, visualFeatures, self.rolloutGoal)
 
         sampledAction = self.action_decoder.sample(pi, mu, sigma, gripperAct)
 
