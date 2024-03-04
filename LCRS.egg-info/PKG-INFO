@@ -27,9 +27,10 @@ Requires-Dist: MulticoreTSNE
 Requires-Dist: gitpython
 Requires-Dist: scipy
 Requires-Dist: sentence-transformers
-Requires-Dist: setuptools==57.0.0
+Requires-Dist: setuptools==57.5.0
 Requires-Dist: gym
 Requires-Dist: moviepy
 Requires-Dist: tqdm
 Requires-Dist: termcolor
 Requires-Dist: wandb
+Requires-Dist: ipykernel
