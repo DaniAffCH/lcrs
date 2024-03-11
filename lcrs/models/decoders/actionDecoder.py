@@ -7,7 +7,7 @@ from omegaconf import DictConfig
 import hydra
 import torch.nn.functional as F
 from lcrs.utils.gripper_control import world_to_tcp_frame
-from utils.distribution import Distribution
+from lcrs.utils.distribution import Distribution
 
 
 def log_sum_exp(x):

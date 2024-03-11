@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.nn.functional import cross_entropy
 import numpy as np
-from utils.distribution import Distribution
+from lcrs.utils.distribution import Distribution
 
 
 class LanguageEncoder(nn.Module):
