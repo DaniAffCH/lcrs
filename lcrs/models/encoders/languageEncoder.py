@@ -38,7 +38,7 @@ class LanguageEncoder(nn.Module):
     def forward(self, language: torch.Tensor) -> torch.Tensor:
         return self.fc(language)
 
-    def getLossAlternative(self, planFeatures: torch.Tensor, languageFeatures: torch.Tensor, auxLang) -> torch.Tensor:
+    def getLoss(self, planFeatures: torch.Tensor, languageFeatures: torch.Tensor, auxLang) -> torch.Tensor:
         """
         CLIP contrastive loss inspired by
         https://arxiv.org/pdf/2103.00020.pdf
