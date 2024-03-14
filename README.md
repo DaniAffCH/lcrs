@@ -47,10 +47,10 @@ cd $LCRS_ROOT/dataset
 sh download_data.sh D | ABC | ABCD | debug
 ```
 
-Alternativley, you the dataset gets automatically downloaded when using the example [training.py](./training.ipynb).
+Alternativley, you the dataset gets automatically downloaded when using the example [training.ipynb](./training.ipynb).
 
 # Training
 ```bash
 python lcrs/training.py datamodule.root_data_dir=/path/to/dataset
 ```
-or via the [training.py](./training.ipynb) (remember to set the correct conda kernel before execution).
+or via the python notebook [training.ipynb](./training.ipynb) (remember to set the correct conda kernel before execution).
