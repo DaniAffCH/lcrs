@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 import math
-from utils.distribution import Distribution
+from lcrs.utils.distribution import Distribution
 
 
 class PositionalEncoding(nn.Module):

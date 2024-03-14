@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.nn.functional import cross_entropy
 import numpy as np
-from utils.distribution import Distribution
+from lcrs.utils.distribution import Distribution
 
 
 class LanguageEncoder(nn.Module):
@@ -43,7 +43,6 @@ class LanguageEncoder(nn.Module):
         CLIP contrastive loss inspired by
         https://arxiv.org/pdf/2103.00020.pdf
         """
-
         planFeaturesEmb = self.planProjection(planFeatures[auxLang])
         languageFeaturesEmb = self.languageProjection(languageFeatures[auxLang])
 
@@ -53,7 +52,6 @@ class LanguageEncoder(nn.Module):
         t = self.temperature.exp()
         logits_per_image = t * planFeaturesEmb @ languageFeaturesEmb.t()
         logits_per_text = logits_per_image.t()
-
         labels = torch.arange(logits_per_image.shape[0], device=languageFeaturesEmb.device)
         loss_i = cross_entropy(logits_per_image, labels)
         loss_t = cross_entropy(logits_per_text, labels)
@@ -70,27 +68,22 @@ class LanguageEncoder(nn.Module):
     def getLossAlternative(self, planFeatures: torch.Tensor, languageFeatures: torch.Tensor, auxLang) -> torch.Tensor:
         planFeaturesEmb = self.planProjection(planFeatures[auxLang])
         languageFeaturesEmb = self.languageProjection(languageFeatures[auxLang])
-        # normalize embeddings?
+
         planFeaturesEmb = planFeaturesEmb / planFeaturesEmb.norm(dim=-1, keepdim=True)
-        languageFeaturesEmb = languageFeaturesEmb / languageFeaturesEmb.norm(dim=-1, keepdim=True) 
+        languageFeaturesEmb = languageFeaturesEmb / languageFeaturesEmb.norm(dim=-1, keepdim=True)
 
-        # ?
         t = self.temperature.exp()
-        logits_per_image = t * planFeaturesEmb @ languageFeaturesEmb.t()
+        logits_per_image = t * torch.nn.functional.cosine_similarity(planFeaturesEmb, languageFeaturesEmb.t(), dim=-1)
         logits_per_text = logits_per_image.t()
-
-        # get labels
         labels = torch.arange(logits_per_image.shape[0], device=languageFeaturesEmb.device)
+        # Contrastive loss le cunn
+        loss_i = (1 - labels) * 0.5 * torch.pow(logits_per_image, 2) + labels * 0.5 * torch.pow(torch.clamp(0.5 - logits_per_image, min=0.0), 2)
+        loss_t = (1 - labels) * 0.5 * torch.pow(logits_per_text, 2) + labels * 0.5 * torch.pow(torch.clamp(0.5 - logits_per_text, min=0.0), 2) 
+        loss = (loss_i + loss_t) / 2
+        if not any(auxLang):
+            loss.zero_()
 
-        # Calculate the contrastive loss as defined by Hadsell et al. in "Dimensionality Reduction by Learning an Invariant Mapping"
-        margin = "?"
-        y = labels #?
-        x1 = planFeatures
-        x2 = languageFeatures
-        
-        # language should be as similar as possible to the recognized plan
-        # should be as distant as possible as other plans
-        
-        d_w = torch.nn.functional.pairwise_distance(w(x1), w(x2))
-        loss = (1 - y) * 0.5 * d_w**2 + y * 0.5 * torch.nn.functional.relu(margin - d_w)**2
-        
+        # (Not any(auxLang)) => (loss == 0)
+        assert any(auxLang) or (loss == 0)
+
+        return loss

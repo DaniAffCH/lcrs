@@ -34,3 +34,4 @@ Requires-Dist: tqdm
 Requires-Dist: termcolor
 Requires-Dist: wandb
 Requires-Dist: ipykernel
+Requires-Dist: ipywidgets

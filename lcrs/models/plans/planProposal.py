@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import torch
 import torch.nn as nn
-from utils.distribution import Distribution
-from utils.distribution import State
+from lcrs.utils.distribution import Distribution
+from lcrs.utils.distribution import State
 import torch.distributions as D
 
 
